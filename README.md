@@ -1,5 +1,13 @@
-# AI Assistant App
+# AI Assistant Android
 
-Android native application built with Kotlin.
+A native Android chat client for the Anthropic Messages API.
 
-The Android source and GitHub Actions build workflow are being added from the supplied project archive.
+## Build
+Open the `android` folder in Android Studio, or run:
+`gradle -p android assembleDebug`
+
+The APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## Configure
+Install the app, enter your Anthropic API key, save it on-device, then chat.
+The key is stored in Android private SharedPreferences. API usage may incur charges.
