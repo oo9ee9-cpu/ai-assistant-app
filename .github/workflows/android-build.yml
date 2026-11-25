@@ -1,4 +1,4 @@
-name: Build Aster Engine APK
+name: Aster Engine CI and APK
 on:
   push:
     branches: [ main ]
@@ -6,7 +6,17 @@ on:
 permissions:
   contents: write
 jobs:
-  build:
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure native core
+        run: cmake -S app/src/main/cpp -B build/core -DASTER_BUILD_TESTS=ON
+      - name: Compile native core and tests
+        run: cmake --build build/core --parallel
+      - name: Run native tests
+        run: ctest --test-dir build/core --output-on-failure
+  android-apk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,11 +24,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Android command line tools
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
-      - name: Install Android build packages
+      - name: Install Android packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
         with:
