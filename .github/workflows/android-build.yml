@@ -1,43 +1,38 @@
-name: Build Android APK
-
+name: Build Aster Engine APK
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+      - name: Install Android build packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Build debug APK
-        working-directory: android
-        run: gradle assembleDebug --stacktrace
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Build APK
+        run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
         with:
-          name: ai-assistant-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: aster-engine-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
       - name: Publish APK release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-${{ github.run_number }}
-          name: AI Assistant APK build ${{ github.run_number }}
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: aster-apk-${{ github.run_number }}
+          name: Aster Engine APK ${{ github.run_number }}
+          files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

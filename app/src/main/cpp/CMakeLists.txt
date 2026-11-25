@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(AsterEngineCore LANGUAGES CXX)
+add_library(aster_engine SHARED EngineCore.cpp NativeBridge.cpp)
+target_compile_features(aster_engine PRIVATE cxx_std_20)
+target_compile_options(aster_engine PRIVATE -Wall -Wextra -Wpedantic)
