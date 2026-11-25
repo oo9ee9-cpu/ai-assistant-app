@@ -14,8 +14,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+      - name: Set up Android command line tools
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android build packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
