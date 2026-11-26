@@ -5,58 +5,46 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
 namespace aster {
-struct Vec3 {
+struct Vec3{
  float x{0},y{0},z{0};
  Vec3 operator+(Vec3 b)const{return{x+b.x,y+b.y,z+b.z};}
  Vec3 operator-(Vec3 b)const{return{x-b.x,y-b.y,z-b.z};}
  Vec3 operator*(float s)const{return{x*s,y*s,z*s};}
+ Vec3& operator+=(Vec3 b){x+=b.x;y+=b.y;z+=b.z;return *this;}
  static float Dot(Vec3 a,Vec3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
  static Vec3 Cross(Vec3 a,Vec3 b){return{a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
  Vec3 Normalized()const{float n=std::sqrt(x*x+y*y+z*z);return n>1e-6f?Vec3{x/n,y/n,z/n}:Vec3{};}
 };
-struct Mat4 {
+struct Mat4{
  float m[16]{};
- static Mat4 Identity();
- static Mat4 Perspective(float fov,float aspect,float nearZ,float farZ);
- static Mat4 LookAt(Vec3 eye,Vec3 center,Vec3 up);
- static Mat4 Translation(Vec3 p);
- static Mat4 Scale(Vec3 s);
- static Mat4 RotationY(float r);
+ static Mat4 Identity();static Mat4 Perspective(float,float,float,float);static Mat4 LookAt(Vec3,Vec3,Vec3);
+ static Mat4 Translation(Vec3);static Mat4 Scale(Vec3);static Mat4 RotationY(float);
 };
-Mat4 operator*(const Mat4&a,const Mat4&b);
-struct Transform { Vec3 position{}; Vec3 rotation{}; Vec3 scale{1,1,1}; };
+Mat4 operator*(const Mat4&,const Mat4&);
+struct Transform{Vec3 position{};Vec3 rotation{};Vec3 scale{1,1,1};};
 using EntityId=std::uint32_t;
-struct Entity { EntityId id{}; Transform transform{}; bool visible{true}; };
-class Scene {
-public:
- EntityId AddCube(Vec3 position);
- std::vector<Entity>& Entities(){return entities_;}
- const std::vector<Entity>& Entities()const{return entities_;}
-private: std::vector<Entity> entities_; EntityId nextId_{1};
+enum class EntityKind:std::uint8_t{Cube,Sphere,Light,Camera};
+struct Entity{EntityId id{};EntityKind kind{EntityKind::Cube};Transform transform{};bool visible{true};float spin{0};};
+class Scene{
+public:EntityId Add(EntityKind,Vec3);std::vector<Entity>& Entities(){return entities_;}const std::vector<Entity>& Entities()const{return entities_;}
+ Entity* Find(EntityId);const Entity* Find(EntityId)const;
+private:std::vector<Entity> entities_;EntityId nextId_{1};
 };
-struct AssetRecord { std::uint32_t id{}; std::string name,type; };
-class AssetRegistry {
-public:
- std::uint32_t Register(std::string name,std::string type);
- const AssetRecord* Find(const std::string& name)const;
-private: std::uint32_t next_{1}; std::unordered_map<std::string,AssetRecord> records_;
-};
-class PhysicsWorld {
-public: void Step(Scene& scene,float dt);
-private: Vec3 gravity_{0,-9.81f,0};
-};
-class Engine {
-public:
- void Start(); void Stop(); void Tick(double delta);
- bool IsRunning()const{return running_;}
- std::uint64_t FrameCount()const{return frames_;}
- Scene& GetScene(){return scene_;}
- AssetRegistry& Assets(){return assets_;}
-private:
- void FixedUpdate(float dt);
- bool running_{false}; double accumulator_{0}; double fixedStep_{1.0/60.0};
- std::uint64_t frames_{0}; Scene scene_; PhysicsWorld physics_; AssetRegistry assets_;
+struct AssetRecord{std::uint32_t id{};std::string name,type;};
+class AssetRegistry{public:std::uint32_t Register(std::string,std::string);const AssetRecord* Find(const std::string&)const;private:std::uint32_t next_{1};std::unordered_map<std::string,AssetRecord> records_;};
+class PhysicsWorld{public:void Step(Scene&,float);};
+class Engine{
+public:void Start();void Stop();void Tick(double);bool IsRunning()const{return running_;}std::uint64_t FrameCount()const{return frames_;}
+ Scene& GetScene(){return scene_;}AssetRegistry& Assets(){return assets_;}
+ void Select(EntityId id){selected_=id;}EntityId Selected()const{return selected_;}
+ void SetPosition(EntityId,Vec3);void SetScale(EntityId,Vec3);void DragSelected(float dx,float dy);
+ void Orbit(float dx,float dy);void Pan(float dx,float dy);void Zoom(float factor);
+ Vec3 CameraPosition()const;Vec3 CameraTarget()const{return cameraTarget_;}
+ float CameraYaw()const{return cameraYaw_;}float CameraPitch()const{return cameraPitch_;}float CameraDistance()const{return cameraDistance_;}
+private:void FixedUpdate(float);
+ bool running_{false};double accumulator_{0},fixedStep_{1.0/60.0};std::uint64_t frames_{0};
+ Scene scene_;PhysicsWorld physics_;AssetRegistry assets_;EntityId selected_{2};
+ Vec3 cameraTarget_{0,0,0};float cameraYaw_{0.62f},cameraPitch_{0.43f},cameraDistance_{8.0f};
 };
 }

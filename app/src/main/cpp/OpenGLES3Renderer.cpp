@@ -1,48 +1,21 @@
 #include "aster/OpenGLES3Renderer.hpp"
 #include <GLES3/gl3.h>
-#include <array>
 #include <vector>
-namespace aster {
-namespace {
-GLuint Compile(GLenum type,const char* src){GLuint s=glCreateShader(type);glShaderSource(s,1,&src,nullptr);glCompileShader(s);GLint ok=0;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);if(!ok){glDeleteShader(s);return 0;}return s;}
-const char* vs=R"(#version 300 es
-layout(location=0)in vec3 p;layout(location=1)in vec3 n;uniform mat4 uMvp;uniform mat4 uModel;out vec3 normal;
-void main(){gl_Position=uMvp*vec4(p,1.0);normal=mat3(uModel)*n;})";
-const char* fs=R"(#version 300 es
-precision mediump float;in vec3 normal;out vec4 color;
-void main(){vec3 l=normalize(vec3(-.4,.8,.5));float d=max(dot(normalize(normal),l),0.0);color=vec4(vec3(.16,.48,.68)*(.25+.75*d),1.0);})";
-std::vector<float> Cube(){
- const float v[]={-1,-1,1,0,0,1, 1,-1,1,0,0,1, 1,1,1,0,0,1, -1,1,1,0,0,1,
- 1,-1,-1,0,0,-1, -1,-1,-1,0,0,-1, -1,1,-1,0,0,-1, 1,1,-1,0,0,-1,
- 1,-1,1,1,0,0, 1,-1,-1,1,0,0, 1,1,-1,1,0,0, 1,1,1,1,0,0,
- -1,-1,-1,-1,0,0, -1,-1,1,-1,0,0, -1,1,1,-1,0,0, -1,1,-1,-1,0,0,
- -1,1,1,0,1,0, 1,1,1,0,1,0, 1,1,-1,0,1,0, -1,1,-1,0,1,0,
- -1,-1,-1,0,-1,0, 1,-1,-1,0,-1,0, 1,-1,1,0,-1,0, -1,-1,1,0,-1,0};
- const int ix[]={0,1,2,0,2,3,4,5,6,4,6,7,8,9,10,8,10,11,12,13,14,12,14,15,16,17,18,16,18,19,20,21,22,20,22,23};
- std::vector<float> out;out.reserve(216);
- for(int i:ix)for(int k=0;k<6;k++)out.push_back(v[i*6+k]);
- return out;
+namespace aster{namespace{
+GLuint sh(GLenum t,const char*s){GLuint x=glCreateShader(t);glShaderSource(x,1,&s,nullptr);glCompileShader(x);GLint ok=0;glGetShaderiv(x,GL_COMPILE_STATUS,&ok);if(!ok){glDeleteShader(x);return 0;}return x;}
+const char* mv=R"(#version 300 es
+layout(location=0)in vec3 p;layout(location=1)in vec3 n;uniform mat4 uMvp;uniform mat4 uModel;out vec3 N;void main(){gl_Position=uMvp*vec4(p,1);N=mat3(uModel)*n;})";
+const char* mf=R"(#version 300 es
+precision mediump float;in vec3 N;out vec4 C;void main(){float d=max(dot(normalize(N),normalize(vec3(-.4,.8,.5))),0.);C=vec4(vec3(.16,.48,.68)*(.3+.7*d),1);})";
+const char* lv=R"(#version 300 es
+layout(location=0)in vec3 p;layout(location=1)in vec3 c;uniform mat4 uMvp;out vec3 tint;void main(){gl_Position=uMvp*vec4(p,1);tint=c;})";
+const char* lf=R"(#version 300 es
+precision mediump float;in vec3 tint;out vec4 C;void main(){C=vec4(tint,1);})";
+std::vector<float> cube(){const float v[]={-1,-1,1,0,0,1,1,-1,1,0,0,1,1,1,1,0,0,1,-1,1,1,0,0,1,1,-1,-1,0,0,-1,-1,-1,-1,0,0,-1,-1,1,-1,0,0,-1,1,1,-1,0,0,-1,1,-1,1,1,0,0,1,-1,-1,1,0,0,1,1,-1,-1,1,0,0,1,1,-1,1,1,0,0,1,1,1,1,0,0,-1,-1,-1,-1,0,0,-1,-1,1,-1,0,0,-1,1,1,-1,0,0,-1,1,-1,-1,0,1,0,1,1,0,1,0,1,1,-1,0,1,0,-1,1,-1,0,1,0,-1,-1,-1,0,-1,0,1,-1,-1,0,-1,0,1,-1,1,0,-1,0,-1,-1,1,0,-1,0};const int ix[]={0,1,2,0,2,3,4,5,6,4,6,7,8,9,10,8,10,11,12,13,14,12,14,15,16,17,18,16,18,19,20,21,22,20,22,23};std::vector<float>o;o.reserve(216);for(int i:ix)for(int k=0;k<6;k++)o.push_back(v[i*6+k]);return o;}
 }
-}
-void OpenGLES3Renderer::Initialize(){
- GLuint a=Compile(GL_VERTEX_SHADER,vs),b=Compile(GL_FRAGMENT_SHADER,fs);if(!a||!b)return;
- program_=glCreateProgram();glAttachShader(program_,a);glAttachShader(program_,b);glLinkProgram(program_);glDeleteShader(a);glDeleteShader(b);
- GLint ok=0;glGetProgramiv(program_,GL_LINK_STATUS,&ok);if(!ok){glDeleteProgram(program_);program_=0;return;}
- mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");
- auto data=Cube();glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);glBindVertexArray(vao_);glBindBuffer(GL_ARRAY_BUFFER,vbo_);
- glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(data.size()*sizeof(float)),data.data(),GL_STATIC_DRAW);
- glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),nullptr);
- glEnableVertexAttribArray(1);glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
- glBindVertexArray(0);glEnable(GL_DEPTH_TEST);glEnable(GL_CULL_FACE);
-}
+void OpenGLES3Renderer::Initialize(){GLuint a=sh(GL_VERTEX_SHADER,mv),b=sh(GL_FRAGMENT_SHADER,mf);program_=glCreateProgram();glAttachShader(program_,a);glAttachShader(program_,b);glLinkProgram(program_);glDeleteShader(a);glDeleteShader(b);mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");a=sh(GL_VERTEX_SHADER,lv);b=sh(GL_FRAGMENT_SHADER,lf);lineProgram_=glCreateProgram();glAttachShader(lineProgram_,a);glAttachShader(lineProgram_,b);glLinkProgram(lineProgram_);glDeleteShader(a);glDeleteShader(b);lineMvp_=glGetUniformLocation(lineProgram_,"uMvp");auto d=cube();glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);glBindVertexArray(vao_);glBindBuffer(GL_ARRAY_BUFFER,vbo_);glBufferData(GL_ARRAY_BUFFER,d.size()*sizeof(float),d.data(),GL_STATIC_DRAW);glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,24,nullptr);glEnableVertexAttribArray(1);glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,24,reinterpret_cast<void*>(12));glBindVertexArray(0);glEnable(GL_DEPTH_TEST);glEnable(GL_CULL_FACE);}
 void OpenGLES3Renderer::Resize(int w,int h){width_=w>0?w:1;height_=h>0?h:1;glViewport(0,0,width_,height_);}
-void OpenGLES3Renderer::RenderFrame(){
- glClearColor(.045f,.075f,.105f,1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);if(!program_||!scene_)return;
- Mat4 proj=Mat4::Perspective(.82f,static_cast<float>(width_)/height_,.1f,100.f);
- Mat4 view=Mat4::LookAt({4.2f,3.2f,6.0f},{0,.2f,0},{0,1,0});Mat4 vp=proj*view;
- glUseProgram(program_);glBindVertexArray(vao_);
- for(const auto&e:scene_->Entities()){if(!e.visible)continue;Mat4 model=Mat4::Translation(e.transform.position)*Mat4::RotationY(e.transform.rotation.y)*Mat4::Scale(e.transform.scale);Mat4 m=vp*model;glUniformMatrix4fv(mvp_,1,GL_FALSE,m.m);glUniformMatrix4fv(model_,1,GL_FALSE,model.m);glDrawArrays(GL_TRIANGLES,0,36);}
- glBindVertexArray(0);
-}
-void OpenGLES3Renderer::Shutdown(){if(vbo_)glDeleteBuffers(1,&vbo_);if(vao_)glDeleteVertexArrays(1,&vao_);if(program_)glDeleteProgram(program_);vbo_=vao_=program_=0;}
+void OpenGLES3Renderer::DrawLines(const Mat4&vp){std::vector<float>d;auto L=[&](Vec3 a,Vec3 b,Vec3 c){for(Vec3 p:{a,b})d.insert(d.end(),{p.x,p.y,p.z,c.x,c.y,c.z});};for(int i=-20;i<=20;i++){float q=float(i);Vec3 c=i==0?Vec3{.3f,.4f,.5f}:Vec3{.15f,.21f,.28f};L({q,0,-20},{q,0,20},c);L({-20,0,q},{20,0,q},c);}auto*e=scene_->Find(engine_->Selected());Vec3 o=e?e->transform.position:Vec3{};L(o,o+Vec3{1.5f,0,0},{1,.12f,.12f});L(o,o+Vec3{0,1.5f,0},{.12f,1,.2f});L(o,o+Vec3{0,0,1.5f},{.15f,.45f,1});L({-3,2,-3},{-2.5f,2,-3},{1,.75f,.15f});L({-3,2,-3},{-3,2.5f,-3},{1,.75f,.15f});GLuint va,vb;glGenVertexArrays(1,&va);glGenBuffers(1,&vb);glBindVertexArray(va);glBindBuffer(GL_ARRAY_BUFFER,vb);glBufferData(GL_ARRAY_BUFFER,d.size()*sizeof(float),d.data(),GL_STREAM_DRAW);glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,24,nullptr);glEnableVertexAttribArray(1);glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,24,reinterpret_cast<void*>(12));glUseProgram(lineProgram_);glUniformMatrix4fv(lineMvp_,1,GL_FALSE,vp.m);glDisable(GL_DEPTH_TEST);glDrawArrays(GL_LINES,0,d.size()/6);glEnable(GL_DEPTH_TEST);glBindVertexArray(0);glDeleteBuffers(1,&vb);glDeleteVertexArrays(1,&va);}
+void OpenGLES3Renderer::RenderFrame(){glClearColor(.045f,.075f,.105f,1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);if(!scene_||!engine_)return;Mat4 p=Mat4::Perspective(.82f,float(width_)/height_,.1f,100);Mat4 v=Mat4::LookAt(engine_->CameraPosition(),engine_->CameraTarget(),{0,1,0});Mat4 vp=p*v;glUseProgram(program_);glBindVertexArray(vao_);for(const auto&e:scene_->Entities()){if(!e.visible||e.kind==EntityKind::Light||e.kind==EntityKind::Camera)continue;Mat4 m=Mat4::Translation(e.transform.position)*Mat4::RotationY(e.transform.rotation.y)*Mat4::Scale(e.transform.scale);Mat4 q=vp*m;glUniformMatrix4fv(mvp_,1,GL_FALSE,q.m);glUniformMatrix4fv(model_,1,GL_FALSE,m.m);glDrawArrays(GL_TRIANGLES,0,36);}glBindVertexArray(0);DrawLines(vp);}
+void OpenGLES3Renderer::Shutdown(){if(vbo_)glDeleteBuffers(1,&vbo_);if(vao_)glDeleteVertexArrays(1,&vao_);if(program_)glDeleteProgram(program_);if(lineProgram_)glDeleteProgram(lineProgram_);vbo_=vao_=program_=lineProgram_=0;}
 }
