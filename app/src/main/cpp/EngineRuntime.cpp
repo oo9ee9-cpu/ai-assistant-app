@@ -14,7 +14,7 @@ const Entity* Scene::Find(EntityId id)const{for(const auto&e:entities_)if(e.id==
 std::uint32_t AssetRegistry::Register(std::string n,std::string t){auto i=records_.find(n);if(i!=records_.end())return i->second.id;auto id=next_++;records_.emplace(n,AssetRecord{id,std::move(n),std::move(t)});return id;}
 const AssetRecord* AssetRegistry::Find(const std::string&n)const{auto i=records_.find(n);return i==records_.end()?nullptr:&i->second;}
 void PhysicsWorld::Step(Scene&s,float dt){for(auto&e:s.Entities()){if(e.kind==EntityKind::Cube||e.kind==EntityKind::Sphere){e.spin+=dt*.55f;e.transform.rotation.y=e.spin;if(e.transform.position.y>0){e.transform.position.y=std::max(0.0f,e.transform.position.y-9.81f*dt*dt*.5f);}}}}
-void Engine::Start(){if(running_)return;running_=true;accumulator_=0;frames_=0;if(scene_.Entities().empty()){scene_.Add(EntityKind::Cube,{0,0,0});scene_.Add(EntityKind::Cube,{2,0,0});}assets_.Register("Cube_Mesh","Mesh");assets_.Register("Default_Lit","Material");}
+void Engine::Start(){if(running_)return;running_=true;accumulator_=0;frames_=0;assets_.Register("Cube_Mesh","Mesh");assets_.Register("Default_Lit","Material");}
 void Engine::Stop(){running_=false;}
 void Engine::Tick(double d){if(!running_)return;if(!std::isfinite(d)||d<0)d=0;accumulator_+=std::min(d,.25);while(accumulator_>=fixedStep_){FixedUpdate(static_cast<float>(fixedStep_));accumulator_-=fixedStep_;}++frames_;}
 void Engine::FixedUpdate(float dt){physics_.Step(scene_,dt);}

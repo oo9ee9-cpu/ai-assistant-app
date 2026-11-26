@@ -27,7 +27,7 @@ using EntityId=std::uint32_t;
 enum class EntityKind:std::uint8_t{Cube,Sphere,Light,Camera};
 struct Entity{EntityId id{};EntityKind kind{EntityKind::Cube};Transform transform{};bool visible{true};float spin{0};};
 class Scene{
-public:EntityId Add(EntityKind,Vec3);std::vector<Entity>& Entities(){return entities_;}const std::vector<Entity>& Entities()const{return entities_;}
+public:EntityId Add(EntityKind,Vec3);void Clear(){entities_.clear();nextId_=1;}std::vector<Entity>& Entities(){return entities_;}const std::vector<Entity>& Entities()const{return entities_;}
  Entity* Find(EntityId);const Entity* Find(EntityId)const;
 private:std::vector<Entity> entities_;EntityId nextId_{1};
 };

@@ -3,6 +3,7 @@
 #include <jni.h>
 #include <memory>
 namespace{aster::Engine engine;std::unique_ptr<aster::OpenGLES3Renderer>renderer;}
+extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeResetScene(JNIEnv*,jobject){engine.GetScene().Clear();engine.Select(0);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStartEngine(JNIEnv*,jobject){engine.Start();}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStopEngine(JNIEnv*,jobject){engine.Stop();}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeAddEntity(JNIEnv*,jobject,jint kind){auto k=static_cast<aster::EntityKind>(std::clamp(kind,0,3));auto n=engine.GetScene().Entities().size();auto id=engine.GetScene().Add(k,{static_cast<float>(n%4)*1.5f-1.5f,0,static_cast<float>(n/4)*-1.5f});engine.Select(id);}
