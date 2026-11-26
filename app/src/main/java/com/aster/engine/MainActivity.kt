@@ -96,7 +96,7 @@ class MainActivity:Activity(){
  private fun togglePlay(){playing=!playing;if(playing)nativeStartEngine()else nativeStopEngine();status.text=if(playing)"● CORE ONLINE" else "● CORE PAUSED";toast(if(playing)"Play started" else "Play stopped")}
  private fun label(s:String,size:Int,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size.toFloat();setTextColor(if(s.contains("CORE ONLINE"))Color.rgb(105,220,170)else white);if(bold)typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(6),dp(5),dp(5),dp(5))}
  private fun section(s:String)=label(s,9,true).apply{setTextColor(muted);setBackgroundColor(head)}
- private fun property(k:String,v:String)=LinearLayout(this).apply{orientation=1;setPadding(dp(7),dp(6),dp(3),dp(6));addView(label(k,9).apply{setTextColor(muted)});addView(label(v,9))}
+ private fun property(k:String,v:String)=label("$k   $v",9).apply{setPadding(dp(7),dp(8),dp(3),dp(8))}
  private fun action(s:String,fn:(View)->Unit)=label(s,9,true).apply{gravity=Gravity.CENTER;setBackgroundColor(Color.rgb(29,39,53));layoutParams=LinearLayout.LayoutParams(-2,dp(30)).apply{setMargins(dp(2),0,dp(2),0)};setOnClickListener{fn(it)}}
  private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_SHORT).show()
  private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
