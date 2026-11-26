@@ -139,7 +139,7 @@ class ProjectHubActivity:Activity(){
    for(i in -6..6)canvas.drawLine(cx+i*w*.065f,cy-h*.38f,cx+i*w*.13f,h,p)
    for(i in 0..7){val yy=cy+i*h*.045f;canvas.drawLine(0f,yy,w,yy,p)}
    when(variant%3){0->drawDesert(canvas,cx,cy);1->drawPhysics(canvas,cx,cy);else->drawCity(canvas,cx,cy)}
-   p.color=0xCC0A1725.toInt();canvas.drawRect(0f,h-dp(16),w,h,p);p.color=0xFFB5EFFF.toInt();p.textSize=dp(8).toFloat();canvas.drawText(if(variant%3==0)"3D GAME"else if(variant%3==1)"PHYSICS"else"3D SCENE",dp(7).toFloat(),h-dp(5).toFloat(),p)
+   p.color=0xCC0A1725.toInt();canvas.drawRect(0f,h-dp(16),w,h,p);p.color=0xFFB5EFFF.toInt();p.textSize=dp(8).toFloat();canvas.drawText(if(variant%3==0) "3D GAME" else if(variant%3==1) "PHYSICS" else "3D SCENE",dp(7).toFloat(),h-dp(5).toFloat(),p)
   }
   private fun drawDesert(c:Canvas,x:Float,y:Float){val path=Path().apply{moveTo(x*.18f,y);lineTo(x*.52f,y-height*.43f);lineTo(x*1.78f,y);lineTo(x,y+height*.22f);close()};p.color=0xFFB98759.toInt();c.drawPath(path,p);for(i in 0..4){val bx=x*.55f+i*dp(14);val by=y-height*.10f+sin(i.toDouble()).toFloat()*dp(7);p.color=0xFFD7A16E.toInt();c.drawRoundRect(bx,by,bx+dp(14),by+dp(11),dp(2).toFloat(),dp(2).toFloat(),p);p.color=0xFF956344.toInt();c.drawRect(bx+dp(3),by-dp(6),bx+dp(11),by,p)}}
   private fun drawPhysics(c:Canvas,x:Float,y:Float){p.color=0xFF55CBE8.toInt();p.style=Paint.Style.STROKE;p.strokeWidth=dp(2).toFloat();for(i in 0..3){val xx=x*.48f+i*dp(30);c.drawCircle(xx,y-height*.15f,dp(8+i%2*4).toFloat(),p)};p.style=Paint.Style.FILL;p.color=0xFF8AD8E8.toInt();c.drawRect(x*.65f,y-height*.3f,x*.72f,y-height*.12f,p);c.drawRect(x*1.2f,y-height*.26f,x*1.29f,y-height*.08f,p)}
