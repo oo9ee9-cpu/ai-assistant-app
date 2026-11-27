@@ -75,7 +75,7 @@ class MainActivity:Activity(){
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);window.statusBarColor=bg;window.navigationBarColor=bg
   @Suppress("DEPRECATION") window.decorView.systemUiVisibility=View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
   projectId=intent.getStringExtra("project_id")?:run{val id=ProjectStore.create(this,"My First Project","3D Starter");id}
-  loadProject();nativeStartEngine();buildEditor()
+  loadProject();buildEditor()
  }
  private fun loadProject(){
   val data=ProjectStore.read(this,projectId);projectName=data.optString("name","Untitled Project");projectTemplate=data.optString("template","3D Starter")
