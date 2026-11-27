@@ -131,7 +131,56 @@ class ProjectHubActivity:Activity(){
  private fun importProject(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},pick)}
  @Deprecated("Use Activity Result API")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==pick&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.import(this,uri)}.onSuccess{showHub();Toast.makeText(this,"تم استيراد المشروع",Toast.LENGTH_SHORT).show()}.onFailure{Toast.makeText(this,it.message?:"فشل الاستيراد",Toast.LENGTH_LONG).show()}}}
- private fun showRepositoryModels(){Toast.makeText(this,"جارٍ جلب فهرس النماذج…",Toast.LENGTH_SHORT).show();Thread{val result=runCatching{ProjectStore.repositoryModelIndex()};runOnUiThread{val models=result.getOrElse{Toast.makeText(this,it.message?:"تعذر الاتصال",Toast.LENGTH_LONG).show();return@runOnUiThread};val labels=models.map{it.first+" • "+(it.second/1048576).coerceAtLeast(1)+" MB"}.toTypedArray();val checked=BooleanArray(models.size);AlertDialog.Builder(this).setTitle("اختر حتى 4 نماذج").setMultiChoiceItems(labels,checked){_,i,on->checked[i]=on}.setNegativeButton("إلغاء",null).setPositiveButton("تنزيل وإنشاء اللعبة"){_,_->val chosen=models.indices.filter{checked[it]}.take(4).map{models[it]};if(chosen.isEmpty())return@setPositiveButton;val id=ProjectStore.create(this,"مغامرة النماذج","Empty");Thread{val downloaded=mutableListOf<Pair<String,String>>();val done=runCatching{chosen.forEach{downloaded.add(it.first to ProjectStore.downloadRepositoryModel(this,id,it.first))};ProjectStore.createRepositoryGame(this,id,downloaded)};runOnUiThread{done.onSuccess{showHub();Toast.makeText(this,"تم إنشاء مشروع اللعبة",Toast.LENGTH_LONG).show()}.onFailure{ProjectStore.delete(this,id);Toast.makeText(this,it.message?:"فشل التنزيل",Toast.LENGTH_LONG).show()}}}.start()}.show()}}}.start()}
+ private fun showRepositoryModels(){
+  Toast.makeText(this,"جارٍ جلب فهرس النماذج…",Toast.LENGTH_SHORT).show()
+  Thread {
+   val result=runCatching { ProjectStore.repositoryModelIndex() }
+   runOnUiThread {
+    val models=result.getOrElse {
+     Toast.makeText(this,it.message?:"تعذر الاتصال بالمستودع",Toast.LENGTH_LONG).show()
+     return@runOnUiThread
+    }
+    if(models.isEmpty()){
+     Toast.makeText(this,"لا توجد نماذج GLB",Toast.LENGTH_LONG).show()
+     return@runOnUiThread
+    }
+    val labels=models.map { it.first+" • "+(it.second/1048576).coerceAtLeast(1)+" MB" }.toTypedArray()
+    val checked=BooleanArray(models.size)
+    AlertDialog.Builder(this)
+     .setTitle("اختر حتى 4 نماذج للتنزيل")
+     .setMultiChoiceItems(labels,checked) { _,index,isChecked -> checked[index]=isChecked }
+     .setNegativeButton("إلغاء",null)
+     .setPositiveButton("تنزيل وإنشاء اللعبة") { _,_ ->
+      val chosen=models.indices.filter { checked[it] }.take(4).map { models[it] }
+      if(chosen.isEmpty()){
+       Toast.makeText(this,"اختر نموذجاً واحداً على الأقل",Toast.LENGTH_SHORT).show()
+       return@setPositiveButton
+      }
+      val projectId=ProjectStore.create(this,"مغامرة النماذج","Empty")
+      Toast.makeText(this,"جارٍ تنزيل النماذج المختارة فقط…",Toast.LENGTH_LONG).show()
+      Thread {
+       val downloaded=mutableListOf<Pair<String,String>>()
+       val done=runCatching {
+        chosen.forEach { item ->
+         val relative=ProjectStore.downloadRepositoryModel(this,projectId,item.first)
+         downloaded.add(item.first to relative)
+        }
+        ProjectStore.createRepositoryGame(this,projectId,downloaded)
+       }
+       runOnUiThread {
+        done.onSuccess {
+         showHub()
+         Toast.makeText(this,"تم إنشاء مشروع اللعبة وحفظ النماذج محلياً",Toast.LENGTH_LONG).show()
+        }.onFailure {
+         ProjectStore.delete(this,projectId)
+         Toast.makeText(this,it.message?:"فشل إنشاء مشروع اللعبة",Toast.LENGTH_LONG).show()
+        }
+       }
+      }.start()
+     }.show()
+   }
+  }.start()
+ }
  private fun showSamples(){AlertDialog.Builder(this).setTitle("نماذج البداية").setItems(arrayOf("مغامرة الصحراء","مختبر الفيزياء","المدينة الذكية")){_,which->val names=listOf("مغامرة_الصحراء","مختبر_الفيزياء","المدينة_الذكية");val templates=listOf("3D Game","Physics Sandbox","City Scene");open(ProjectStore.create(this,names[which],templates[which]))}.show()}
  private fun manage(p:AsterProject,anchor:View){val menu=PopupMenu(this,anchor);listOf("فتح المشروع","إعادة تسمية","حذف").forEachIndexed{i,s->menu.menu.add(s).setOnMenuItemClickListener{when(i){0->open(p.id);1->rename(p);2->AlertDialog.Builder(this).setMessage("حذف ${p.name}?").setNegativeButton("إلغاء",null).setPositiveButton("حذف"){_,_->ProjectStore.delete(this,p.id);showHub()}.show()};true}};menu.show()}
  private fun rename(p:AsterProject){val e=EditText(this).apply{setText(p.name);setSingleLine()};AlertDialog.Builder(this).setTitle("إعادة تسمية المشروع").setView(e).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->val n=e.text.toString().trim();if(n.isNotEmpty()){ProjectStore.rename(this,p.id,n);showHub()}}.show()}
