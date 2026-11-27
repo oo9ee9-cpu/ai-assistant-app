@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <vector>
 namespace aster { namespace {
 GLuint CompileShader(GLenum type,const char*source){
@@ -105,6 +106,21 @@ int OpenGLES3Renderer::PickGizmoAxis(float x,float y)const{
  }
  return selectedAxis;
 }
+int OpenGLES3Renderer::PickEntity(float x,float y)const{
+ if(!scene_||!engine_)return 0;
+ const Mat4 vp=ViewProjection();float best=std::numeric_limits<float>::max();int picked=0;
+ for(const Entity& e:scene_->Entities()){
+  if(!e.visible||e.kind==EntityKind::Light||e.kind==EntityKind::Camera)continue;
+  float sx=0,sy=0,edgeX=0,edgeY=0;
+  const float worldRadius=std::max({std::fabs(e.transform.scale.x),std::fabs(e.transform.scale.y),std::fabs(e.transform.scale.z)});
+  if(!ProjectPoint(vp,e.transform.position,width_,height_,sx,sy)||
+     !ProjectPoint(vp,e.transform.position+Vec3{worldRadius,0,0},width_,height_,edgeX,edgeY))continue;
+  const float radius=std::max(22.0f,std::hypot(edgeX-sx,edgeY-sy)+10.0f);
+  const float dx=x-sx,dy=y-sy,d=dx*dx+dy*dy;
+  if(d<=radius*radius&&d<best){best=d;picked=static_cast<int>(e.id);}
+ }
+ return picked;
+}
 void OpenGLES3Renderer::DragGizmoAxis(int axis,float dx,float dy){
  if(axis<1||axis>3||!scene_||!engine_)return;
  const Entity*entity=scene_->Find(engine_->Selected());if(!entity)return;
@@ -175,7 +191,8 @@ bool OpenGLES3Renderer::ImportModel(const std::string& path,std::string& error){
 }
 void OpenGLES3Renderer::Shutdown(){
  for(auto& m:imported_)for(auto& p:m->primitives){if(p.ebo)glDeleteBuffers(1,&p.ebo);if(p.vbo)glDeleteBuffers(1,&p.vbo);if(p.vao)glDeleteVertexArrays(1,&p.vao);}imported_.clear();if(vbo_)glDeleteBuffers(1,&vbo_);if(vao_)glDeleteVertexArrays(1,&vao_);
+ if(sphereVbo_)glDeleteBuffers(1,&sphereVbo_);if(sphereVao_)glDeleteVertexArrays(1,&sphereVao_);
  if(program_)glDeleteProgram(program_);if(lineProgram_)glDeleteProgram(lineProgram_);
- vbo_=vao_=program_=lineProgram_=0;
+ vbo_=vao_=sphereVbo_=sphereVao_=program_=lineProgram_=0;sphereVertexCount_=0;
 }
 }
