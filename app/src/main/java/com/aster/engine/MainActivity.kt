@@ -6,6 +6,11 @@ import java.io.File
 import android.os.Bundle
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
+import android.widget.FrameLayout
 import android.opengl.GLSurfaceView
 import android.view.Gravity
 import android.view.MotionEvent
@@ -28,6 +33,7 @@ class MainActivity:Activity(){
  private external fun nativeStopEngine()
  private external fun nativePlayMove(forward:Float,strafe:Float,deltaSeconds:Float)
  private external fun nativePlayLook(dx:Float,dy:Float)
+ private external fun nativeSetThirdPerson(entityId:Int,enabled:Boolean)
  private external fun nativeAddEntity(kind:Int)
  private external fun nativeSelectEntity(id:Int)
  private external fun nativeDeleteEntity(id:Int)
@@ -62,6 +68,10 @@ class MainActivity:Activity(){
  private var projectName="Untitled Project"
  private var projectTemplate="3D Starter"
  private lateinit var glView:EngineSurfaceView
+ private lateinit var editorTop:LinearLayout
+ private lateinit var editorWork:LinearLayout
+ private lateinit var editorFooter:TextView
+ private val topEditorControls=mutableListOf<View>()
  private lateinit var hierarchy:LinearLayout
  private lateinit var inspectorName:TextView
  private lateinit var pos:TextView
@@ -112,7 +122,7 @@ class MainActivity:Activity(){
  }
  private fun buildEditor(){
   val root=LinearLayout(this).apply{orientation=1;setBackgroundColor(bg);setPadding(dp(5),dp(3),dp(5),dp(3))}
-  val top=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER_VERTICAL;layoutDirection=View.LAYOUT_DIRECTION_RTL}
+  val top=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER_VERTICAL;layoutDirection=View.LAYOUT_DIRECTION_RTL};editorTop=top
   top.addView(label("✺ أستر — "+projectName,13,true),LinearLayout.LayoutParams(0,dp(42),1f))
   status=label("● المحرّك يعمل",9);top.addView(status)
   top.addView(action("المشاريع"){saveProject();startActivity(Intent(this@MainActivity,ProjectHubActivity::class.java));finish()})
@@ -123,14 +133,18 @@ class MainActivity:Activity(){
   playButton=action("▶ تجربة اللعب"){togglePlay()};top.addView(playButton)
   top.addView(action("الأصول"){showAssetBrowser()})
   top.addView(action("استيراد نموذج"){pickModel()})
+  top.addView(action("مواقع النماذج"){showModelSources()})
   root.addView(top)
-  val work=LinearLayout(this).apply{orientation=0}
+  val work=LinearLayout(this).apply{orientation=0};editorWork=work
   leftPanel=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("التسلسل الهرمي"))}
   val left=leftPanel
   hierarchy=LinearLayout(this).apply{orientation=1}
   left.addView(hierarchy,LinearLayout.LayoutParams(-1,0,1f));work.addView(left,LinearLayout.LayoutParams(0,-1,.22f))
   val center=LinearLayout(this).apply{orientation=1;addView(section("منظور المشهد • OpenGL ES 3.0"))}
-  glView=EngineSurfaceView();center.addView(glView,LinearLayout.LayoutParams(-1,0,1f));work.addView(center,LinearLayout.LayoutParams(0,-1,.56f))
+  val viewport=FrameLayout(this);glView=EngineSurfaceView();viewport.addView(glView,FrameLayout.LayoutParams(-1,-1))
+  val joystick=JoystickView(this){forward,strafe->if(playing)glView.queueEvent{nativePlayMove(forward,strafe,1f/60f)}}
+  viewport.addView(joystick,FrameLayout.LayoutParams(dp(148),dp(148),Gravity.BOTTOM or Gravity.LEFT).apply{leftMargin=dp(14);bottomMargin=dp(14)})
+  joystick.visibility=View.GONE;center.addView(viewport,LinearLayout.LayoutParams(-1,0,1f));work.addView(center,LinearLayout.LayoutParams(0,-1,.56f))
   rightPanel=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("الخصائص"))}
   val right=rightPanel
   inspectorName=label(selected.ifEmpty{"لا يوجد تحديد"},14,true);right.addView(inspectorName)
@@ -143,7 +157,7 @@ class MainActivity:Activity(){
   right.addView(section("عارض المجسم"));right.addView(property("نوع المجسم","حسب نوع الكائن"));right.addView(property("الخامة","حسب النموذج المستورد"))
   right.addView(section("الفيزياء"));right.addView(property("جسم فيزيائي","اضغط للضبط").apply{setOnClickListener{editPhysics()}});right.addView(property("السرعة","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("السرعة",14){a->ids[selected]?.let{id->nativeSetVelocity(id,a[0],a[1],a[2]);saveProject()}}}})
   work.addView(right,LinearLayout.LayoutParams(0,-1,.22f))
-  root.addView(work,LinearLayout.LayoutParams(-1,0,1f));root.addView(label("نواة C++20 • حفظ محلي للمشروع • أندرويد",9),LinearLayout.LayoutParams(-1,dp(24)))
+  root.addView(work,LinearLayout.LayoutParams(-1,0,1f));editorFooter=label("نواة C++20 • حفظ محلي للمشروع • أندرويد",9);root.addView(editorFooter,LinearLayout.LayoutParams(-1,dp(24)))
   setContentView(root);rebuildHierarchy();refreshInspector()
  }
  private fun showAddMenu(anchor:View){val m=PopupMenu(this,anchor);listOf("Cube","Sphere","Light","Camera").forEachIndexed{i,n->m.menu.add(n).setOnMenuItemClickListener{
@@ -236,8 +250,35 @@ class MainActivity:Activity(){
   refreshInspector();saveProject();glView.requestRender()
  }
  private fun togglePlay(){
-  if(!playing){saveProject();nativeStartEngine();playing=true;playButton.text="■ إيقاف والعودة للتعديل";status.text="● وضع تجربة اللعب";toast("بدأت تجربة المشهد")}
-  else{nativeStopEngine();playing=false;playButton.text="▶ تجربة اللعب";status.text="● وضع التعديل";refreshInspector();saveProject();glView.requestRender();toast("عدت إلى وضع التعديل")}
+  if(!playing){
+   saveProject()
+   var cameraTarget=ids.entries.firstOrNull{it.key.contains("Camera",true)}?.value?:0
+   for((name,script) in scriptsByEntity){
+    val enabled=script.lineSequence().map{it.trim().lowercase()}.any{it=="third_person"||it=="camera.third_person"||it=="منظور الشخص الثالث"||it=="camera = third_person"}
+    if(enabled){cameraTarget=ids[name]?:cameraTarget;break}
+   }
+   if(cameraTarget==0)cameraTarget=ids.entries.firstOrNull{it.key.startsWith("Cube")||it.key.startsWith("Sphere")||it.key.startsWith("Model_")}?.value?:0
+   nativeStartEngine();if(cameraTarget>0)nativeSetThirdPerson(cameraTarget,true)
+   playing=true;playButton.text="↩ العودة إلى التطوير";status.visibility=View.GONE
+   for(i in 0 until editorTop.childCount){val child=editorTop.getChildAt(i);child.visibility=if(child===playButton)View.VISIBLE else View.GONE}
+   editorWork.visibility=View.GONE;editorFooter.visibility=View.GONE;toast("بدأت التجربة — اسحب يمين الشاشة لتدوير الكاميرا")
+  }else{
+   nativeSetThirdPerson(0,false);nativeStopEngine();playing=false;playButton.text="▶ تجربة اللعب";status.visibility=View.VISIBLE
+   for(i in 0 until editorTop.childCount)editorTop.getChildAt(i).visibility=View.VISIBLE
+   editorWork.visibility=View.VISIBLE;editorFooter.visibility=View.VISIBLE;refreshInspector();saveProject();glView.requestRender();toast("عدت إلى وضع التطوير")
+  }
+ }
+ private fun showModelSources(){
+  val entries=arrayOf(
+   "Poly Haven — CC0 (GLB عند توفره)" to "https://polyhaven.com/models",
+   "Kenney — أصول مجانية، راجع ترخيص الحزمة" to "https://kenney.nl/assets",
+   "Quaternius — أصول مجانية، راجع صفحة الترخيص" to "https://quaternius.com",
+   "Sketchfab — فعّل Downloadable واختر GLB، وافحص الترخيص لكل نموذج" to "https://sketchfab.com/3d-models"
+  )
+  val box=LinearLayout(this).apply{orientation=1;setPadding(dp(12),dp(4),dp(12),dp(4))}
+  entries.forEach{(title,url)->box.addView(action(title){startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)))})}
+  box.addView(label("ملاحظة: اختر GLB أو glTF مدعوماً، وتحقق من الترخيص والإسناد قبل الاستخدام التجاري. التنزيل يتم من موقع المصدر ثم الاستيراد من زر (استيراد نموذج).",11))
+  AlertDialog.Builder(this).setTitle("مواقع النماذج ثلاثية الأبعاد").setView(box).setPositiveButton("إغلاق",null).show()
  }
  private fun label(s:String,size:Int,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size.toFloat();setTextColor(if(s.contains("CORE ONLINE"))Color.rgb(105,220,170)else white);if(bold)typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER_VERTICAL;layoutDirection=View.LAYOUT_DIRECTION_RTL;textDirection=View.TEXT_DIRECTION_FIRST_STRONG;setPadding(dp(6),dp(5),dp(5),dp(5))}
  private fun section(s:String)=label(s,9,true).apply{setTextColor(muted);setBackgroundColor(head)}
@@ -248,6 +289,11 @@ class MainActivity:Activity(){
  override fun onPause(){if(playing){nativeStopEngine();playing=false};if(projectId.isNotEmpty())saveProject();if(::glView.isInitialized)glView.onPause();super.onPause()}
  override fun onResume(){super.onResume();if(::glView.isInitialized)glView.onResume()}
  override fun onBackPressed(){saveProject();startActivity(Intent(this,ProjectHubActivity::class.java));finish()}
+ private inner class JoystickView(context:android.content.Context,private val onMove:(Float,Float)->Unit):View(context){
+  private val paint=Paint(Paint.ANTI_ALIAS_FLAG);private var cx=0f;private var cy=0f;private var knobX=0f;private var knobY=0f;private var active=false
+  override fun onDraw(canvas:Canvas){super.onDraw(canvas);if(cx==0f){cx=width*.5f;cy=height*.5f;knobX=cx;knobY=cy};paint.color=0x553A5268;canvas.drawCircle(cx,cy,width*.43f,paint);paint.color=0xAA9BC9DA.toInt();paint.style=Paint.Style.STROKE;paint.strokeWidth=dp(2).toFloat();canvas.drawCircle(cx,cy,width*.43f,paint);paint.style=Paint.Style.FILL;paint.color=if(active)0xFF54B9D4.toInt() else 0xDDDAEAF0.toInt();canvas.drawCircle(knobX,knobY,width*.19f,paint)}
+  override fun onTouchEvent(event:MotionEvent):Boolean{when(event.actionMasked){MotionEvent.ACTION_DOWN,MotionEvent.ACTION_MOVE->{active=true;val dx=event.x-cx;val dy=event.y-cy;val max=width*.28f;val len=kotlin.math.hypot(dx,dy).coerceAtMost(max);val scale=if(kotlin.math.hypot(dx,dy)>max)max/kotlin.math.hypot(dx,dy) else 1f;knobX=cx+dx*scale;knobY=cy+dy*scale;onMove((-dy/max).coerceIn(-1f,1f),(dx/max).coerceIn(-1f,1f));invalidate();return true};MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->{active=false;knobX=cx;knobY=cy;onMove(0f,0f);invalidate();return true}};return true}
+ }
  private inner class EngineSurfaceView:GLSurfaceView(this@MainActivity){
   private var x0=0f;private var y0=0f;private var downX=0f;private var downY=0f;private var touchMoved=false;private var oldDist=0f;private var activeAxis=0
   init{setEGLContextClientVersion(3);preserveEGLContextOnPause=true
@@ -256,9 +302,9 @@ class MainActivity:Activity(){
     override fun onDrawFrame(gl:GL10?){val now=System.nanoTime();nativeRender(((now-last)/1e9).toFloat().coerceIn(0f,.1f));last=now}
    });renderMode=RENDERMODE_CONTINUOUSLY
    setOnTouchListener{_,e->when(e.actionMasked){
-    MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;downX=e.x;downY=e.y;touchMoved=false;activeAxis=if(gizmo)nativePickGizmoAxis(e.x,e.y)else 0;true}
+    MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;downX=e.x;downY=e.y;touchMoved=false;activeAxis=if(!playing&&gizmo)nativePickGizmoAxis(e.x,e.y)else 0;true}
     MotionEvent.ACTION_POINTER_DOWN->{oldDist=dist(e);x0=midX(e);y0=midY(e);true}
-    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){touchMoved=true;val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val totalX=e.x-downX;val totalY=e.y-downY;if(kotlin.math.hypot(totalX,totalY)>resources.displayMetrics.density*8)touchMoved=true;if(touchMoved){val dx=e.x-x0;val dy=e.y-y0;if(playing){if(downX<width*.42f)nativePlayMove(-dy/resources.displayMetrics.density*.018f,dx/resources.displayMetrics.density*.018f,1f/60f)else nativePlayLook(dx,dy)}else{if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy)};x0=e.x;y0=e.y}};requestRender();true}
+    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){touchMoved=true;val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val totalX=e.x-downX;val totalY=e.y-downY;if(kotlin.math.hypot(totalX,totalY)>resources.displayMetrics.density*8)touchMoved=true;if(touchMoved){val dx=e.x-x0;val dy=e.y-y0;if(playing){nativePlayLook(dx,dy)}else{if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy)};x0=e.x;y0=e.y}};requestRender();true}
     MotionEvent.ACTION_UP->{if(!touchMoved&&e.pointerCount==1){val hit=nativePickEntity(e.x,e.y);val name=ids.entries.firstOrNull{it.value==hit}?.key;if(name!=null)runOnUiThread{select(name)}};oldDist=0f;activeAxis=0;true}
     MotionEvent.ACTION_CANCEL->{oldDist=0f;activeAxis=0;true};else->true
    }}

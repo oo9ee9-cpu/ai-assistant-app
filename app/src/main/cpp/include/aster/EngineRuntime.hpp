@@ -51,7 +51,7 @@ public:void Start();void Stop();void Tick(double);bool IsRunning()const{return r
  Scene& GetScene(){return scene_;}AssetRegistry& Assets(){return assets_;}
  void Select(EntityId id){selected_=id;}EntityId Selected()const{return selected_;}
  void SetPosition(EntityId,Vec3);void SetScale(EntityId,Vec3);void SetStatic(EntityId,bool);
- void SetVelocity(EntityId,Vec3);Vec3 Velocity(EntityId)const;void PlayMove(float forward,float strafe,float dt);void PlayLook(float dx,float dy);
+ void SetVelocity(EntityId,Vec3);Vec3 Velocity(EntityId)const;void SetThirdPerson(EntityId,bool);void PlayMove(float forward,float strafe,float dt);void PlayLook(float dx,float dy);
  void DragSelected(float dx,float dy);void DragSelectedAxis(int axis,float amount);
  void Orbit(float dx,float dy);void Pan(float dx,float dy);void Zoom(float factor);
  Vec3 CameraPosition()const;Vec3 CameraTarget()const{return cameraTarget_;}
@@ -60,7 +60,7 @@ private:
  struct StartState{Transform transform;Vec3 velocity;};
  void FixedUpdate(float);
  std::unordered_map<EntityId,StartState> startState_;
- bool running_{false};double accumulator_{0},fixedStep_{1.0/60.0};std::uint64_t frames_{0};
+ bool running_{false};bool thirdPerson_{false};EntityId thirdPersonTarget_{0};double accumulator_{0},fixedStep_{1.0/60.0};std::uint64_t frames_{0};
  Scene scene_;PhysicsWorld physics_;AssetRegistry assets_;EntityId selected_{2};
  Vec3 cameraTarget_{0,0,0};float cameraYaw_{0.62f},cameraPitch_{0.43f},cameraDistance_{8.0f};
 };

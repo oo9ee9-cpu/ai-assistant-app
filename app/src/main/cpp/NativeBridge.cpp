@@ -7,6 +7,7 @@
 namespace{aster::Engine engine;std::unique_ptr<aster::OpenGLES3Renderer>renderer;std::string utf(JNIEnv*e,jstring s){if(!s)return {};const char*p=e->GetStringUTFChars(s,nullptr);std::string r=p?p:"";if(p)e->ReleaseStringUTFChars(s,p);return r;}}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeResetScene(JNIEnv*,jobject){engine.GetScene().Clear();engine.Select(0);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStartEngine(JNIEnv*,jobject){engine.Start();}
+extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSetThirdPerson(JNIEnv*,jobject,jint id,jboolean enabled){engine.SetThirdPerson(static_cast<aster::EntityId>(id),enabled==JNI_TRUE);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStopEngine(JNIEnv*,jobject){engine.Stop();}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativePlayMove(JNIEnv*,jobject,jfloat f,jfloat s,jfloat dt){engine.PlayMove(f,s,dt);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativePlayLook(JNIEnv*,jobject,jfloat x,jfloat y){engine.PlayLook(x,y);}

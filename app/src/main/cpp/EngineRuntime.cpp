@@ -140,7 +140,7 @@ void Engine::Tick(double d){
  if(steps==maxSubsteps)accumulator_=std::min(accumulator_,fixedStep_);
  ++frames_;
 }
-void Engine::FixedUpdate(float dt){physics_.Step(scene_,dt);}
+void Engine::FixedUpdate(float dt){physics_.Step(scene_,dt);if(thirdPerson_){if(auto*p=scene_.Find(thirdPersonTarget_)){const Vec3 desired=p->transform.position+Vec3{0,1.25f,0};cameraTarget_=cameraTarget_+(desired-cameraTarget_)*std::clamp(dt*9.0f,0.0f,1.0f);cameraDistance_=5.2f;cameraPitch_=std::clamp(cameraPitch_,0.12f,0.55f);}else thirdPerson_=false;}}
 Vec3 Engine::CameraPosition()const{float cp=std::cos(cameraPitch_);return cameraTarget_+Vec3{std::sin(cameraYaw_)*cp,std::sin(cameraPitch_),std::cos(cameraYaw_)*cp}*cameraDistance_;}
 void Engine::Orbit(float dx,float dy){cameraYaw_-=dx*.008f;cameraPitch_=std::clamp(cameraPitch_+dy*.008f,-1.35f,1.35f);}
 void Engine::Pan(float dx,float dy){Vec3 forward=(cameraTarget_-CameraPosition()).Normalized();Vec3 right=Vec3::Cross(forward,{0,1,0}).Normalized();Vec3 up=Vec3::Cross(right,forward).Normalized();float s=cameraDistance_*.0018f;cameraTarget_+=right*(-dx*s)+up*(dy*s);}
@@ -162,6 +162,7 @@ void Engine::PlayMove(float forward,float strafe,float dt){
  player->body.velocity.x=(f.x*forward+r.x*strafe)*speed;player->body.velocity.z=(f.z*forward+r.z*strafe)*speed;cameraTarget_=player->transform.position;
 }
 void Engine::PlayLook(float dx,float dy){if(running_)Orbit(dx,dy);}
+void Engine::SetThirdPerson(EntityId id,bool enabled){thirdPerson_=enabled&&id!=0&&scene_.Find(id)!=nullptr;thirdPersonTarget_=thirdPerson_?id:0;if(thirdPerson_){const auto*p=scene_.Find(id);cameraTarget_=p->transform.position+Vec3{0,1.25f,0};cameraDistance_=5.2f;cameraPitch_=0.28f;}}
 void Engine::SetPosition(EntityId id,Vec3 p){if(auto*e=scene_.Find(id))e->transform.position=p;}
 void Engine::SetScale(EntityId id,Vec3 s){if(auto*e=scene_.Find(id))e->transform.scale={std::max(.05f,s.x),std::max(.05f,s.y),std::max(.05f,s.z)};}
 }
