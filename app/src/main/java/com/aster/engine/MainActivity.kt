@@ -1,7 +1,8 @@
 package com.aster.engine
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.Intent\nimport java.io.File
+import android.content.Intent
+import java.io.File
 import android.os.Bundle
 import android.graphics.Color
 import android.graphics.Typeface
@@ -20,7 +21,8 @@ import javax.microedition.khronos.opengles.GL10
 
 class MainActivity:Activity(){
  companion object{init{System.loadLibrary("aster_engine")}}
- private external fun nativeImportModel(path:String):String\n private external fun nativeResetScene()
+ private external fun nativeImportModel(path:String):String
+ private external fun nativeResetScene()
  private external fun nativeStartEngine()
  private external fun nativeStopEngine()
  private external fun nativeAddEntity(kind:Int)
@@ -40,7 +42,9 @@ class MainActivity:Activity(){
  private external fun nativeSurfaceCreated()
  private external fun nativeSurfaceChanged(width:Int,height:Int)
  private external fun nativeRender(deltaSeconds:Float)
- private val modelPicker=7201\n private val modelPaths=mutableListOf<String>()\n private var projectId=""
+ private val modelPicker=7201
+ private val modelPaths=mutableListOf<String>()
+ private var projectId=""
  private var projectName="Untitled Project"
  private var projectTemplate="3D Starter"
  private lateinit var glView:EngineSurfaceView
@@ -65,7 +69,8 @@ class MainActivity:Activity(){
  }
  private fun loadProject(){
   val data=ProjectStore.read(this,projectId);projectName=data.optString("name","Untitled Project");projectTemplate=data.optString("template","3D Starter")
-  modelPaths.clear();val saved=data.optJSONArray("assets")?:JSONArray();for(i in 0 until saved.length())modelPaths.add(saved.optString(i))\n  nativeResetScene();names.clear();ids.clear();names.add("Camera");names.add("Directional Light");nextId=1
+  modelPaths.clear();val saved=data.optJSONArray("assets")?:JSONArray();for(i in 0 until saved.length())modelPaths.add(saved.optString(i))
+  nativeResetScene();names.clear();ids.clear();names.add("Camera");names.add("Directional Light");nextId=1
   val entities=data.optJSONArray("entities")?:JSONArray()
   for(i in 0 until entities.length()){
    val e=entities.getJSONObject(i);val kind=e.optInt("kind",0).coerceIn(0,3)
@@ -86,7 +91,8 @@ class MainActivity:Activity(){
   for((name,id) in ids){val v=nativeGetTransform(id);val kind=when{ name.startsWith("Sphere")->1;name.startsWith("Point Light")->2;name.startsWith("Camera_")->3;else->0}
    array.put(ProjectStore.entity(name,kind,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7],v[8],v[9]>.5f,v[10],v[11],v[12],v[13]>.5f,v[14],v[15],v[16]))
   }
-  ProjectStore.save(this,projectId,projectName,projectTemplate,array)\n  val data=ProjectStore.read(this,projectId);val assets=JSONArray();modelPaths.forEach{assets.put(it)};data.put("assets",assets);ProjectStore.writeRaw(this,projectId,data)
+  ProjectStore.save(this,projectId,projectName,projectTemplate,array)
+  val data=ProjectStore.read(this,projectId);val assets=JSONArray();modelPaths.forEach{assets.put(it)};data.put("assets",assets);ProjectStore.writeRaw(this,projectId,data)
  }
  private fun buildEditor(){
   val root=LinearLayout(this).apply{orientation=1;setBackgroundColor(bg);setPadding(dp(5),dp(3),dp(5),dp(3))}

@@ -4,7 +4,8 @@ import android.net.Uri
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.util.UUID\nimport java.util.Locale
+import java.util.UUID
+import java.util.Locale
 import java.util.zip.ZipInputStream
 
 data class AsterProject(val id:String,val name:String,val template:String,val updatedAt:Long,val entityCount:Int)
