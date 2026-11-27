@@ -1,7 +1,7 @@
 name: Aster Engine CI and APK
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/gltf-importer ]
   workflow_dispatch:
 permissions:
   contents: write
