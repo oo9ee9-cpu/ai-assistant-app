@@ -8,6 +8,8 @@ namespace{aster::Engine engine;std::unique_ptr<aster::OpenGLES3Renderer>renderer
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeResetScene(JNIEnv*,jobject){engine.GetScene().Clear();engine.Select(0);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStartEngine(JNIEnv*,jobject){engine.Start();}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStopEngine(JNIEnv*,jobject){engine.Stop();}
+extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativePlayMove(JNIEnv*,jobject,jfloat f,jfloat s,jfloat dt){engine.PlayMove(f,s,dt);}
+extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativePlayLook(JNIEnv*,jobject,jfloat x,jfloat y){engine.PlayLook(x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeAddEntity(JNIEnv*,jobject,jint k){auto n=engine.GetScene().Entities().size();engine.Select(engine.GetScene().Add(static_cast<aster::EntityKind>(std::clamp(k,0,3)),{float(n%4)*1.5f-1.5f,0,float(n/4)*-1.5f}));}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSelectEntity(JNIEnv*,jobject,jint id){engine.Select(id);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeDeleteEntity(JNIEnv*,jobject,jint id){engine.GetScene().Remove(static_cast<aster::EntityId>(id));if(engine.Selected()==static_cast<aster::EntityId>(id))engine.Select(0);}

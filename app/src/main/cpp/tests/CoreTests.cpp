@@ -30,6 +30,15 @@ int main(){
  collision.Stop();
  assert(std::fabs(collision.GetScene().Find(mover)->transform.position.x+2.0f)<1e-5f);
 
+ // Sphere contacts use spherical radii rather than overlapping cube bounds.
+ Engine sphereCollision;auto& sphereScene=sphereCollision.GetScene();
+ auto s1=sphereScene.Add(EntityKind::Sphere,{0,3,0});auto s2=sphereScene.Add(EntityKind::Sphere,{0.5f,3,0});
+ sphereCollision.SetStatic(s1,true);sphereCollision.Start();sphereCollision.Tick(1.0/60.0);
+ const auto* left=sphereScene.Find(s1);const auto* right=sphereScene.Find(s2);
+ assert(left&&right);const Vec3 separation=right->transform.position-left->transform.position;
+ assert(std::sqrt(Vec3::Dot(separation,separation))>1.0f);
+ sphereCollision.Stop();
+
  // Removing an entity updates the scene and cannot remove an unknown ID.
  Engine removal;const auto removable=removal.GetScene().Add(EntityKind::Cube,{0,0,0});
  assert(removal.GetScene().Remove(removable));assert(removal.GetScene().Find(removable)==nullptr);

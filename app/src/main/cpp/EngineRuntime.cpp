@@ -42,6 +42,30 @@ void PhysicsWorld::ResolveGround(Entity&e){
 void PhysicsWorld::ResolvePair(Entity&a,Entity&b){
  if(!IsBody(a)||!IsBody(b))return;
  const Vec3 ha=HalfExtents(a),hb=HalfExtents(b);
+ if(a.kind==EntityKind::Sphere&&b.kind==EntityKind::Sphere){
+  const Vec3 delta=b.transform.position-a.transform.position;const float ra=std::max({ha.x,ha.y,ha.z}),rb=std::max({hb.x,hb.y,hb.z});
+  const float distance=std::sqrt(Vec3::Dot(delta,delta)),penetration=ra+rb-distance;if(penetration<=0)return;
+  const Vec3 normal=distance>1e-6f?delta*(1.0f/distance):Vec3{0,1,0};
+  const float ia=a.body.isStatic?0.0f:1.0f/std::max(a.body.mass,.001f),ib=b.body.isStatic?0.0f:1.0f/std::max(b.body.mass,.001f),sum=ia+ib;if(sum<=0)return;
+  const Vec3 correction=normal*(std::max(0.0f,penetration-.001f)*.85f/sum);
+  if(ia>0)a.transform.position+=correction*(-ia);if(ib>0)b.transform.position+=correction*ib;
+  const float vn=Vec3::Dot(b.body.velocity-a.body.velocity,normal);
+  if(vn<0){const float j=-(1.0f+std::min(a.body.restitution,b.body.restitution))*vn/sum;const Vec3 impulse=normal*j;if(ia>0)a.body.velocity+=impulse*(-ia);if(ib>0)b.body.velocity+=impulse*ib;}
+  return;
+ }
+ if(a.kind==EntityKind::Sphere||b.kind==EntityKind::Sphere){
+  Entity& sphere=a.kind==EntityKind::Sphere?a:b;Entity& box=a.kind==EntityKind::Sphere?b:a;
+  const Vec3 hs=HalfExtents(sphere),hb2=HalfExtents(box),center=sphere.transform.position;
+  const Vec3 closest={std::clamp(center.x,box.transform.position.x-hb2.x,box.transform.position.x+hb2.x),std::clamp(center.y,box.transform.position.y-hb2.y,box.transform.position.y+hb2.y),std::clamp(center.z,box.transform.position.z-hb2.z,box.transform.position.z+hb2.z)};
+  const Vec3 delta=center-closest;const float d2=Vec3::Dot(delta,delta),radius=std::max({hs.x,hs.y,hs.z});if(d2>=radius*radius)return;
+  const float distance=std::sqrt(std::max(d2,1e-10f));const Vec3 normal=d2>1e-10f?delta*(1.0f/distance):Vec3{0,1,0};
+  const float is=sphere.body.isStatic?0.0f:1.0f/std::max(sphere.body.mass,.001f),ib=box.body.isStatic?0.0f:1.0f/std::max(box.body.mass,.001f),sum=is+ib;if(sum<=0)return;
+  const Vec3 correction=normal*(std::max(0.0f,radius-distance-.001f)*.85f/sum);
+  if(is>0)sphere.transform.position+=correction*is;if(ib>0)box.transform.position+=correction*(-ib);
+  const float vn=Vec3::Dot(sphere.body.velocity-box.body.velocity,normal);
+  if(vn<0){const float j=-(1.0f+std::min(sphere.body.restitution,box.body.restitution))*vn/sum;const Vec3 impulse=normal*j;if(is>0)sphere.body.velocity+=impulse*is;if(ib>0)box.body.velocity+=impulse*(-ib);}
+  return;
+ }
  const Vec3 delta=b.transform.position-a.transform.position;
  const Vec3 overlap={ha.x+hb.x-std::fabs(delta.x),ha.y+hb.y-std::fabs(delta.y),ha.z+hb.z-std::fabs(delta.z)};
  if(overlap.x<=0.0f||overlap.y<=0.0f||overlap.z<=0.0f)return;
@@ -126,6 +150,18 @@ void Engine::DragSelectedAxis(int axis,float amount){auto*e=scene_.Find(selected
 void Engine::SetStatic(EntityId id,bool value){if(auto*e=scene_.Find(id)){e->body.isStatic=value;if(value)e->body.velocity={};}}
 void Engine::SetVelocity(EntityId id,Vec3 v){if(auto*e=scene_.Find(id);e&&!e->body.isStatic)e->body.velocity=v;}
 Vec3 Engine::Velocity(EntityId id)const{const auto*e=scene_.Find(id);return e?e->body.velocity:Vec3{};}
+void Engine::PlayMove(float forward,float strafe,float dt){
+ if(!running_||!std::isfinite(dt)||dt<=0)return;
+ Entity* player=scene_.Find(selected_);
+ if(!player||!(player->kind==EntityKind::Cube||player->kind==EntityKind::Sphere)){
+  auto& all=scene_.Entities();auto it=std::find_if(all.begin(),all.end(),[](const Entity&e){return (e.kind==EntityKind::Cube||e.kind==EntityKind::Sphere)&&!e.body.isStatic;});
+  if(it==all.end())return;player=&*it;selected_=player->id;
+ }
+ const float len=std::sqrt(forward*forward+strafe*strafe);if(len>1){forward/=len;strafe/=len;}
+ const float speed=4.5f;const Vec3 f{std::sin(cameraYaw_),0,-std::cos(cameraYaw_)},r{std::cos(cameraYaw_),0,std::sin(cameraYaw_)};
+ player->body.velocity.x=(f.x*forward+r.x*strafe)*speed;player->body.velocity.z=(f.z*forward+r.z*strafe)*speed;cameraTarget_=player->transform.position;
+}
+void Engine::PlayLook(float dx,float dy){if(running_)Orbit(dx,dy);}
 void Engine::SetPosition(EntityId id,Vec3 p){if(auto*e=scene_.Find(id))e->transform.position=p;}
 void Engine::SetScale(EntityId id,Vec3 s){if(auto*e=scene_.Find(id))e->transform.scale={std::max(.05f,s.x),std::max(.05f,s.y),std::max(.05f,s.z)};}
 }

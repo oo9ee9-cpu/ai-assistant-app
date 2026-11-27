@@ -25,6 +25,8 @@ class MainActivity:Activity(){
  private external fun nativeResetScene()
  private external fun nativeStartEngine()
  private external fun nativeStopEngine()
+ private external fun nativePlayMove(forward:Float,strafe:Float,deltaSeconds:Float)
+ private external fun nativePlayLook(dx:Float,dy:Float)
  private external fun nativeAddEntity(kind:Int)
  private external fun nativeSelectEntity(id:Int)
  private external fun nativeDeleteEntity(id:Int)
@@ -247,7 +249,7 @@ class MainActivity:Activity(){
    setOnTouchListener{_,e->when(e.actionMasked){
     MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;downX=e.x;downY=e.y;touchMoved=false;activeAxis=if(gizmo)nativePickGizmoAxis(e.x,e.y)else 0;true}
     MotionEvent.ACTION_POINTER_DOWN->{oldDist=dist(e);x0=midX(e);y0=midY(e);true}
-    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){touchMoved=true;val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val totalX=e.x-downX;val totalY=e.y-downY;if(kotlin.math.hypot(totalX,totalY)>resources.displayMetrics.density*8)touchMoved=true;if(touchMoved){val dx=e.x-x0;val dy=e.y-y0;if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy);x0=e.x;y0=e.y}};requestRender();true}
+    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){touchMoved=true;val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val totalX=e.x-downX;val totalY=e.y-downY;if(kotlin.math.hypot(totalX,totalY)>resources.displayMetrics.density*8)touchMoved=true;if(touchMoved){val dx=e.x-x0;val dy=e.y-y0;if(playing){if(downX<width*.42f)nativePlayMove(-dy/resources.displayMetrics.density*.018f,dx/resources.displayMetrics.density*.018f,1f/60f)else nativePlayLook(dx,dy)}else{if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy)};x0=e.x;y0=e.y}};requestRender();true}
     MotionEvent.ACTION_UP->{if(!touchMoved&&e.pointerCount==1){val hit=nativePickEntity(e.x,e.y);val name=ids.entries.firstOrNull{it.value==hit}?.key;if(name!=null)runOnUiThread{select(name)}};oldDist=0f;activeAxis=0;true}
     MotionEvent.ACTION_CANCEL->{oldDist=0f;activeAxis=0;true};else->true
    }}

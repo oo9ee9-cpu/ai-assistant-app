@@ -51,7 +51,7 @@ public:void Start();void Stop();void Tick(double);bool IsRunning()const{return r
  Scene& GetScene(){return scene_;}AssetRegistry& Assets(){return assets_;}
  void Select(EntityId id){selected_=id;}EntityId Selected()const{return selected_;}
  void SetPosition(EntityId,Vec3);void SetScale(EntityId,Vec3);void SetStatic(EntityId,bool);
- void SetVelocity(EntityId,Vec3);Vec3 Velocity(EntityId)const;
+ void SetVelocity(EntityId,Vec3);Vec3 Velocity(EntityId)const;void PlayMove(float forward,float strafe,float dt);void PlayLook(float dx,float dy);
  void DragSelected(float dx,float dy);void DragSelectedAxis(int axis,float amount);
  void Orbit(float dx,float dy);void Pan(float dx,float dy);void Zoom(float factor);
  Vec3 CameraPosition()const;Vec3 CameraTarget()const{return cameraTarget_;}
