@@ -130,7 +130,7 @@ class MainActivity:Activity(){
  override fun onResume(){super.onResume();if(::glView.isInitialized)glView.onResume()}
  override fun onBackPressed(){saveProject();startActivity(Intent(this,ProjectHubActivity::class.java));finish()}
  private inner class EngineSurfaceView:GLSurfaceView(this@MainActivity){
-  private var x0=0f;private var y0=0f;private var oldDist=0f
+  private var x0=0f;private var y0=0f;private var oldDist=0f;private var activeAxis=0
   init{setEGLContextClientVersion(3);preserveEGLContextOnPause=true
    setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime()}
     override fun onSurfaceChanged(gl:GL10?,w:Int,h:Int){nativeSurfaceChanged(w,h)}
