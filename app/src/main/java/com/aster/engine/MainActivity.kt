@@ -27,6 +27,7 @@ class MainActivity:Activity(){
  private external fun nativeStopEngine()
  private external fun nativeAddEntity(kind:Int)
  private external fun nativeSelectEntity(id:Int)
+ private external fun nativeDeleteEntity(id:Int)
  private external fun nativeOrbit(dx:Float,dy:Float)
  private external fun nativePan(dx:Float,dy:Float)
  private external fun nativeZoom(factor:Float)
@@ -63,7 +64,8 @@ class MainActivity:Activity(){
  private val ids=linkedMapOf<String,Int>()
  private var nextId=1
  private var selected=""
- private var playing=true
+ private var playing=false
+ private lateinit var playButton:TextView
  private var gizmo=true
  private val bg=Color.rgb(12,17,25);private val panel=Color.rgb(21,29,40);private val head=Color.rgb(16,23,33)
  private val muted=Color.rgb(145,160,180);private val white=Color.rgb(231,238,247);private val cyan=Color.rgb(94,190,220)
@@ -110,7 +112,7 @@ class MainActivity:Activity(){
   top.addView(action("القوائم"){panelsVisible=!panelsVisible;leftPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;rightPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;glView.requestLayout()})
   top.addView(action("إضافة +"){showAddMenu(it)})
   top.addView(action("تحريك"){gizmo=!gizmo;toast(if(gizmo)"تم تفعيل تحريك المحاور" else "تم تفعيل تدوير الكاميرا")})
-  top.addView(action(if(playing)"إيقاف" else "تشغيل"){togglePlay()})
+  playButton=action("▶ تجربة اللعب"){togglePlay()};top.addView(playButton)
   top.addView(action("الأصول"){showAssetBrowser()})
   top.addView(action("استيراد نموذج"){pickModel()})
   root.addView(top)
@@ -123,7 +125,10 @@ class MainActivity:Activity(){
   glView=EngineSurfaceView();center.addView(glView,LinearLayout.LayoutParams(-1,0,1f));work.addView(center,LinearLayout.LayoutParams(0,-1,.56f))
   rightPanel=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("الخصائص"))}
   val right=rightPanel
-  inspectorName=label(selected.ifEmpty{"لا يوجد تحديد"},14,true);right.addView(inspectorName);right.addView(section("التحويل"))
+  inspectorName=label(selected.ifEmpty{"لا يوجد تحديد"},14,true);right.addView(inspectorName)
+  val selectedActions=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER}
+  selectedActions.addView(action("حذف العنصر"){deleteSelected()});selectedActions.addView(action("تكرار"){duplicateSelected()});selectedActions.addView(action("إعادة ضبط"){resetSelected()})
+  right.addView(selectedActions);right.addView(section("التحويل"))
   pos=property("الموقع","اضغط للتعديل");pos.setOnClickListener{editVector(false)};right.addView(pos)
   right.addView(property("الدوران","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("الدوران (راديان)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
   scale=property("الحجم","اضغط للتعديل");scale.setOnClickListener{editVector(true)};right.addView(scale)
@@ -200,14 +205,36 @@ class MainActivity:Activity(){
  private fun pickModel(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("model/gltf-binary","model/gltf+json","application/octet-stream"))},modelPicker)}
  @Deprecated("Use Activity Result API")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
- private fun togglePlay(){playing=!playing;if(playing)nativeStartEngine()else nativeStopEngine();status.text=if(playing)"● المحرك يعمل" else "● المحرك متوقف";toast(if(playing)"بدأ التشغيل" else "تم إيقاف التشغيل")}
+ private fun deleteSelected(){
+  val id=ids[selected]?:return
+  recordUndo();nativeDeleteEntity(id);ids.remove(selected);names.remove(selected)
+  selected=ids.keys.lastOrNull()?:"";if(selected.isNotEmpty())nativeSelectEntity(ids[selected]!!)
+  rebuildHierarchy();refreshInspector();saveProject();glView.requestRender();toast("تم حذف العنصر")
+ }
+ private fun duplicateSelected(){
+  val v=nativeGetTransform(ids[selected]?:return)
+  val kind=when{selected.startsWith("Sphere")->1;selected.startsWith("Point Light")->2;selected.startsWith("Camera_")->3;else->0}
+  recordUndo();nativeAddEntity(kind);val id=nextId++;val name=selected+"_نسخة_"+id
+  names.add(name);ids[name]=id
+  nativeSetPosition(id,v[0]+1f,v[1],v[2]);nativeSetScale(id,v[3],v[4],v[5]);nativeSetRotation(id,v[6],v[7],v[8])
+  nativeSetStatic(id,v[9]>.5f);nativeSetBodyProperties(id,v[10],v[11],v[12],v[13]>.5f);nativeSetVelocity(id,v[14],v[15],v[16])
+  select(name);saveProject();glView.requestRender()
+ }
+ private fun resetSelected(){
+  val id=ids[selected]?:return;recordUndo();nativeSetPosition(id,0f,0f,0f);nativeSetRotation(id,0f,0f,0f);nativeSetScale(id,1f,1f,1f);nativeSetVelocity(id,0f,0f,0f)
+  refreshInspector();saveProject();glView.requestRender()
+ }
+ private fun togglePlay(){
+  if(!playing){saveProject();nativeStartEngine();playing=true;playButton.text="■ إيقاف والعودة للتعديل";status.text="● وضع تجربة اللعب";toast("بدأت تجربة المشهد")}
+  else{nativeStopEngine();playing=false;playButton.text="▶ تجربة اللعب";status.text="● وضع التعديل";refreshInspector();saveProject();glView.requestRender();toast("عدت إلى وضع التعديل")}
+ }
  private fun label(s:String,size:Int,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size.toFloat();setTextColor(if(s.contains("CORE ONLINE"))Color.rgb(105,220,170)else white);if(bold)typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER_VERTICAL;layoutDirection=View.LAYOUT_DIRECTION_RTL;textDirection=View.TEXT_DIRECTION_FIRST_STRONG;setPadding(dp(6),dp(5),dp(5),dp(5))}
  private fun section(s:String)=label(s,9,true).apply{setTextColor(muted);setBackgroundColor(head)}
  private fun property(k:String,v:String)=label("$k   $v",9).apply{setPadding(dp(7),dp(8),dp(3),dp(8))}
  private fun action(s:String,fn:(View)->Unit)=label(s,9,true).apply{gravity=Gravity.CENTER;setBackgroundColor(Color.rgb(29,39,53));layoutParams=LinearLayout.LayoutParams(-2,dp(30)).apply{setMargins(dp(2),0,dp(2),0)};setOnClickListener{fn(it)}}
  private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_SHORT).show()
  private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
- override fun onPause(){if(projectId.isNotEmpty())saveProject();if(::glView.isInitialized)glView.onPause();super.onPause()}
+ override fun onPause(){if(playing){nativeStopEngine();playing=false};if(projectId.isNotEmpty())saveProject();if(::glView.isInitialized)glView.onPause();super.onPause()}
  override fun onResume(){super.onResume();if(::glView.isInitialized)glView.onResume()}
  override fun onBackPressed(){saveProject();startActivity(Intent(this,ProjectHubActivity::class.java));finish()}
  private inner class EngineSurfaceView:GLSurfaceView(this@MainActivity){

@@ -30,6 +30,11 @@ int main(){
  collision.Stop();
  assert(std::fabs(collision.GetScene().Find(mover)->transform.position.x+2.0f)<1e-5f);
 
+ // Removing an entity updates the scene and cannot remove an unknown ID.
+ Engine removal;const auto removable=removal.GetScene().Add(EntityKind::Cube,{0,0,0});
+ assert(removal.GetScene().Remove(removable));assert(removal.GetScene().Find(removable)==nullptr);
+ assert(!removal.GetScene().Remove(removable));
+
  // Full XYZ rotation matrices remain finite and preserve orthogonal unit axes.
  const Vec3 rx=Vec3{0,1,0};
  const Mat4 rotX=Mat4::RotationX(1.57079632679f),rotY=Mat4::RotationY(1.57079632679f),rotZ=Mat4::RotationZ(1.57079632679f);

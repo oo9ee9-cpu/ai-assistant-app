@@ -10,6 +10,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStart
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStopEngine(JNIEnv*,jobject){engine.Stop();}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeAddEntity(JNIEnv*,jobject,jint k){auto n=engine.GetScene().Entities().size();engine.Select(engine.GetScene().Add(static_cast<aster::EntityKind>(std::clamp(k,0,3)),{float(n%4)*1.5f-1.5f,0,float(n/4)*-1.5f}));}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSelectEntity(JNIEnv*,jobject,jint id){engine.Select(id);}
+extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeDeleteEntity(JNIEnv*,jobject,jint id){engine.GetScene().Remove(static_cast<aster::EntityId>(id));if(engine.Selected()==static_cast<aster::EntityId>(id))engine.Select(0);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeOrbit(JNIEnv*,jobject,jfloat x,jfloat y){engine.Orbit(x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativePan(JNIEnv*,jobject,jfloat x,jfloat y){engine.Pan(x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeZoom(JNIEnv*,jobject,jfloat f){engine.Zoom(f);}

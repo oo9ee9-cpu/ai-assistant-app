@@ -31,7 +31,7 @@ struct RigidBody{
 };
 struct Entity{EntityId id{};EntityKind kind{EntityKind::Cube};Transform transform{};RigidBody body{};bool visible{true};};
 class Scene{
-public:EntityId Add(EntityKind,Vec3);void Clear(){entities_.clear();nextId_=1;}std::vector<Entity>& Entities(){return entities_;}const std::vector<Entity>& Entities()const{return entities_;}
+public:EntityId Add(EntityKind,Vec3);bool Remove(EntityId);void Clear(){entities_.clear();nextId_=1;}std::vector<Entity>& Entities(){return entities_;}const std::vector<Entity>& Entities()const{return entities_;}
  Entity* Find(EntityId);const Entity* Find(EntityId)const;
 private:std::vector<Entity> entities_;EntityId nextId_{1};
 };

@@ -15,6 +15,7 @@ EntityId Scene::Add(EntityKind k,Vec3 p){
  if(k==EntityKind::Light||k==EntityKind::Camera){e.body.isStatic=true;e.body.useGravity=false;}
  entities_.push_back(e);return e.id;
 }
+bool Scene::Remove(EntityId id){auto i=std::find_if(entities_.begin(),entities_.end(),[&](const Entity&e){return e.id==id;});if(i==entities_.end())return false;entities_.erase(i);return true;}
 Entity* Scene::Find(EntityId id){for(auto& e:entities_)if(e.id==id)return &e;return nullptr;}
 const Entity* Scene::Find(EntityId id)const{for(const auto&e:entities_)if(e.id==id)return &e;return nullptr;}
 std::uint32_t AssetRegistry::Register(std::string n,std::string t){auto i=records_.find(n);if(i!=records_.end())return i->second.id;auto id=next_++;records_.emplace(n,AssetRecord{id,std::move(n),std::move(t)});return id;}

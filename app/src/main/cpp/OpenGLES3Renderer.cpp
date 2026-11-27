@@ -34,7 +34,8 @@ void main(){
  float ndl=max(dot(n,l),0.0);float rough=clamp(uRoughness,0.08,1.0);float metal=clamp(uMetallic,0.0,1.0);
  float spec=pow(max(dot(n,h),0.0),mix(128.0,4.0,rough))*(1.0-rough*0.65);
  vec3 f0=mix(vec3(0.04),albedo.rgb,metal);
- vec3 color=albedo.rgb*(0.48+0.52*ndl*(1.0-metal))+f0*spec*ndl;
+ float ambient=0.62;float directional=0.34*ndl;float fill=0.12*max(n.y,0.0)+0.08*max(-n.y,0.0);
+ vec3 color=albedo.rgb*(ambient+directional+fill)*(1.0-metal)+f0*spec*max(ndl,0.18);
  color=color/(color+vec3(1.0));color=pow(max(color,vec3(0.0)),vec3(1.0/2.2));
  if(uSelected==1)color=mix(color,vec3(0.18,0.72,1.0),0.16);
  outColor=vec4(color,albedo.a);
