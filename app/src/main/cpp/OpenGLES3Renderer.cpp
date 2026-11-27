@@ -140,7 +140,7 @@ void OpenGLES3Renderer::RenderFrame(){
  const Mat4 vp=ViewProjection();glUseProgram(program_);glBindVertexArray(vao_);
  for(const Entity&e:scene_->Entities()){
   if(!e.visible||e.kind==EntityKind::Light||e.kind==EntityKind::Camera)continue;
-  const Mat4 model=Mat4::Translation(e.transform.position)*Mat4::RotationY(e.transform.rotation.y)*Mat4::Scale(e.transform.scale);
+  const Mat4 model=Mat4::Translation(e.transform.position)*Mat4::RotationZ(e.transform.rotation.z)*Mat4::RotationY(e.transform.rotation.y)*Mat4::RotationX(e.transform.rotation.x)*Mat4::Scale(e.transform.scale);
   const Mat4 mvp=vp*model;glUniformMatrix4fv(mvp_,1,GL_FALSE,mvp.m);glUniformMatrix4fv(model_,1,GL_FALSE,model.m);
   glDrawArrays(GL_TRIANGLES,0,36);
  }

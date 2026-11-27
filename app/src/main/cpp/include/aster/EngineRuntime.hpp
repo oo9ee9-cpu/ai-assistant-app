@@ -19,7 +19,7 @@ struct Vec3{
 struct Mat4{
  float m[16]{};
  static Mat4 Identity();static Mat4 Perspective(float,float,float,float);static Mat4 LookAt(Vec3,Vec3,Vec3);
- static Mat4 Translation(Vec3);static Mat4 Scale(Vec3);static Mat4 RotationX(float);static Mat4 RotationY(float);static Mat4 RotationZ(float);
+ static Mat4 Translation(Vec3);static Mat4 Scale(Vec3);static Mat4 RotationY(float);
 };
 Mat4 operator*(const Mat4&,const Mat4&);
 struct Transform{Vec3 position{};Vec3 rotation{};Vec3 scale{1,1,1};};
@@ -50,7 +50,7 @@ class Engine{
 public:void Start();void Stop();void Tick(double);bool IsRunning()const{return running_;}std::uint64_t FrameCount()const{return frames_;}
  Scene& GetScene(){return scene_;}AssetRegistry& Assets(){return assets_;}
  void Select(EntityId id){selected_=id;}EntityId Selected()const{return selected_;}
- void SetPosition(EntityId,Vec3);void SetScale(EntityId,Vec3);void SetRotation(EntityId,Vec3);void SetStatic(EntityId,bool); void SetBodyProperties(EntityId,float,float,float,bool);
+ void SetPosition(EntityId,Vec3);void SetScale(EntityId,Vec3);void SetStatic(EntityId,bool);
  void SetVelocity(EntityId,Vec3);Vec3 Velocity(EntityId)const;
  void DragSelected(float dx,float dy);void DragSelectedAxis(int axis,float amount);
  void Orbit(float dx,float dy);void Pan(float dx,float dy);void Zoom(float factor);
