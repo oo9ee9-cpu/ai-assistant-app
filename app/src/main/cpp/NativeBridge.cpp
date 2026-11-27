@@ -1,7 +1,7 @@
 #include "aster/EngineRuntime.hpp"
 #include "aster/OpenGLES3Renderer.hpp"
 #include <jni.h>
-#include <memory>
+#include <memory>\n#include <algorithm>
 namespace{aster::Engine engine;std::unique_ptr<aster::OpenGLES3Renderer>renderer;}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeResetScene(JNIEnv*,jobject){engine.GetScene().Clear();engine.Select(0);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStartEngine(JNIEnv*,jobject){engine.Start();}
@@ -11,7 +11,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSelec
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeOrbit(JNIEnv*,jobject,jfloat x,jfloat y){engine.Orbit(x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativePan(JNIEnv*,jobject,jfloat x,jfloat y){engine.Pan(x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeZoom(JNIEnv*,jobject,jfloat f){engine.Zoom(f);}
-extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeDragSelected(JNIEnv*,jobject,jfloat x,jfloat y){engine.DragSelected(x,y);}
+extern "C" JNIEXPORT jint JNICALL Java_com_aster_engine_MainActivity_nativePickGizmoAxis(JNIEnv*,jobject,jfloat x,jfloat y){return renderer?renderer->PickGizmoAxis(x,y):0;}
+extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeDragGizmoAxis(JNIEnv*,jobject,jint axis,jfloat dx,jfloat dy){if(renderer)renderer->DragGizmoAxis(axis,dx,dy);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSetPosition(JNIEnv*,jobject,jint id,jfloat x,jfloat y,jfloat z){engine.SetPosition(id,{x,y,z});}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSetScale(JNIEnv*,jobject,jint id,jfloat x,jfloat y,jfloat z){engine.SetScale(id,{x,y,z});}
 extern "C" JNIEXPORT jfloatArray JNICALL Java_com_aster_engine_MainActivity_nativeGetTransform(JNIEnv*e,jobject,jint id){auto*t=engine.GetScene().Find(id);jfloat v[6]={0,0,0,1,1,1};if(t){v[0]=t->transform.position.x;v[1]=t->transform.position.y;v[2]=t->transform.position.z;v[3]=t->transform.scale.x;v[4]=t->transform.scale.y;v[5]=t->transform.scale.z;}auto a=e->NewFloatArray(6);e->SetFloatArrayRegion(a,0,6,v);return a;}

@@ -38,7 +38,7 @@ class Engine{
 public:void Start();void Stop();void Tick(double);bool IsRunning()const{return running_;}std::uint64_t FrameCount()const{return frames_;}
  Scene& GetScene(){return scene_;}AssetRegistry& Assets(){return assets_;}
  void Select(EntityId id){selected_=id;}EntityId Selected()const{return selected_;}
- void SetPosition(EntityId,Vec3);void SetScale(EntityId,Vec3);void DragSelected(float dx,float dy);
+ void SetPosition(EntityId,Vec3);void SetScale(EntityId,Vec3);void DragSelected(float dx,float dy);void DragSelectedAxis(int axis,float amount);
  void Orbit(float dx,float dy);void Pan(float dx,float dy);void Zoom(float factor);
  Vec3 CameraPosition()const;Vec3 CameraTarget()const{return cameraTarget_;}
  float CameraYaw()const{return cameraYaw_;}float CameraPitch()const{return cameraPitch_;}float CameraDistance()const{return cameraDistance_;}

@@ -23,6 +23,7 @@ void Engine::Orbit(float dx,float dy){cameraYaw_-=dx*.008f;cameraPitch_=std::cla
 void Engine::Pan(float dx,float dy){Vec3 forward=(cameraTarget_-CameraPosition()).Normalized();Vec3 right=Vec3::Cross(forward,{0,1,0}).Normalized();Vec3 up=Vec3::Cross(right,forward).Normalized();float s=cameraDistance_*.0018f;cameraTarget_+=right*(-dx*s)+up*(dy*s);}
 void Engine::Zoom(float factor){if(factor>0&&std::isfinite(factor))cameraDistance_=std::clamp(cameraDistance_*factor,1.5f,35.0f);}
 void Engine::DragSelected(float dx,float dy){auto*e=scene_.Find(selected_);if(!e)return;Vec3 f=(cameraTarget_-CameraPosition()).Normalized();Vec3 r=Vec3::Cross(f,{0,1,0}).Normalized();Vec3 u=Vec3::Cross(r,f).Normalized();float s=cameraDistance_*.002f;e->transform.position+=r*(dx*s)+u*(-dy*s);cameraTarget_+=r*(dx*s)+u*(-dy*s);}
+void Engine::DragSelectedAxis(int axis,float amount){auto*e=scene_.Find(selected_);if(!e||!std::isfinite(amount))return;if(axis==1)e->transform.position.x+=amount;else if(axis==2)e->transform.position.y+=amount;else if(axis==3)e->transform.position.z+=amount;}
 void Engine::SetPosition(EntityId id,Vec3 p){if(auto*e=scene_.Find(id))e->transform.position=p;}
 void Engine::SetScale(EntityId id,Vec3 s){if(auto*e=scene_.Find(id))e->transform.scale={std::max(.05f,s.x),std::max(.05f,s.y),std::max(.05f,s.z)};}
 }

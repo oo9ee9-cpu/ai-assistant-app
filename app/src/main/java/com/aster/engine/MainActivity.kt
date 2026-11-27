@@ -28,7 +28,8 @@ class MainActivity:Activity(){
  private external fun nativeOrbit(dx:Float,dy:Float)
  private external fun nativePan(dx:Float,dy:Float)
  private external fun nativeZoom(factor:Float)
- private external fun nativeDragSelected(dx:Float,dy:Float)
+ private external fun nativePickGizmoAxis(x:Float,y:Float):Int
+ private external fun nativeDragGizmoAxis(axis:Int,dx:Float,dy:Float)
  private external fun nativeSetPosition(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeSetScale(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeGetTransform(id:Int):FloatArray
@@ -136,10 +137,10 @@ class MainActivity:Activity(){
     override fun onDrawFrame(gl:GL10?){val now=System.nanoTime();nativeRender(((now-last)/1e9).toFloat().coerceIn(0f,.1f));last=now}
    });renderMode=RENDERMODE_CONTINUOUSLY
    setOnTouchListener{_,e->when(e.actionMasked){
-    MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;true}
+    MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;activeAxis=if(gizmo)nativePickGizmoAxis(e.x,e.y)else 0;true}
     MotionEvent.ACTION_POINTER_DOWN->{oldDist=dist(e);x0=midX(e);y0=midY(e);true}
-    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val dx=e.x-x0;val dy=e.y-y0;if(gizmo)nativeDragSelected(dx,dy)else nativeOrbit(dx,dy);x0=e.x;y0=e.y};requestRender();true}
-    MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->{oldDist=0f;true};else->true
+    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val dx=e.x-x0;val dy=e.y-y0;if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy);x0=e.x;y0=e.y};requestRender();true}
+    MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->{oldDist=0f;activeAxis=0;true};else->true
    }}
   }
   private fun dist(e:MotionEvent):Float{if(e.pointerCount<2)return 0f;val x=e.getX(0)-e.getX(1);val y=e.getY(0)-e.getY(1);return kotlin.math.sqrt(x*x+y*y)}
