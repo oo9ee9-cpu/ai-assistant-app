@@ -1,8 +1,8 @@
 #include "aster/AssetPipeline.hpp"
-#include "cgltf.h"
+#include "../third_party/cgltf.h"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
-#include "stb_image.h"
+#include "../third_party/stb_image.h"
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
