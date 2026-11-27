@@ -37,7 +37,7 @@ class ProjectHubActivity:Activity(){
   row.addView(txt("أستر // إدارة المشاريع",15,true),LinearLayout.LayoutParams(0,-1,1f))
   row.addView(badge("مساحة العمل المحلية • دون اتصال"))
   val right=LinearLayout(this).apply{orientation=1;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(10),0,0,0)}
-  right.addView(txt("v1.5 • ENGINE CORE     ⚙ SETTINGS",10,true))
+  right.addView(txt("الإصدار 1.5 • إعدادات المحرك ⚙",10,true))
   right.addView(txt("التخزين المحلي: "+storageFree(),8).apply{setTextColor(muted);gravity=Gravity.RIGHT})
   row.addView(right);return row
  }
@@ -45,16 +45,16 @@ class ProjectHubActivity:Activity(){
   val col=LinearLayout(this).apply{orientation=1;setPadding(dp(5),dp(9),dp(13),dp(4))}
   col.addView(txt("إنشاء وبناء",21,true),LinearLayout.LayoutParams(-1,dp(31)))
   col.addView(txt("أدر مشاريعك أو ابدأ عالماً ثلاثي الأبعاد",10).apply{setTextColor(muted)},LinearLayout.LayoutParams(-1,dp(28)))
-  col.addView(actionCard("⬡","مشروع جديد","إنشاء عالم ثلاثي الأبعاد","Templates • Physics • Scene",true){newProject()},LinearLayout.LayoutParams(-1,0,1f))
+  col.addView(actionCard("⬡","مشروع جديد","إنشاء عالم ثلاثي الأبعاد","قوالب • فيزياء • مشاهد",true){newProject()},LinearLayout.LayoutParams(-1,0,1f))
   col.addView(space(7));col.addView(actionCard("▱","استيراد مشروع","استيراد من مساحة الجهاز",".asterproj • .zip",false){importProject()},LinearLayout.LayoutParams(-1,0,1f))
-  col.addView(space(7));col.addView(actionCard("▣","التعلّم والنماذج","استكشف المشاهد الجاهزة","3D • Physics • City",false){showSamples()},LinearLayout.LayoutParams(-1,0,.78f))
+  col.addView(space(7));col.addView(actionCard("▣","التعلّم والنماذج","استكشف المشاهد الجاهزة","ثلاثي الأبعاد • فيزياء • مدينة",false){showSamples()},LinearLayout.LayoutParams(-1,0,.78f))
   return col
  }
  private fun rightPanel():View{
   val col=LinearLayout(this).apply{orientation=1;setPadding(dp(5),dp(9),dp(2),dp(4))}
   val projects=ProjectStore.list(this)
   val title=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER_VERTICAL}
-  val labels=LinearLayout(this).apply{orientation=1};labels.addView(txt("المشاريع الأخيرة",18,true));labels.addView(txt("${projects.size} Projects  •  Stored locally",10).apply{setTextColor(muted)})
+  val labels=LinearLayout(this).apply{orientation=1};labels.addView(txt("المشاريع الأخيرة",18,true));labels.addView(txt("${projects.size} مشروع • محفوظ محلياً",10).apply{setTextColor(muted)})
   title.addView(labels,LinearLayout.LayoutParams(0,-1,1f));title.addView(badge("المكتبة المحلية"));col.addView(title,LinearLayout.LayoutParams(-1,dp(48)))
   if(projects.isEmpty()){
    val empty=LinearLayout(this).apply{orientation=1;gravity=Gravity.CENTER;setBackground(glass(0x99203348.toInt(),dp(12)))}
@@ -74,12 +74,12 @@ class ProjectHubActivity:Activity(){
   card.addView(ProjectThumbnail(this,index),LinearLayout.LayoutParams(-1,0,.55f))
   val details=LinearLayout(this).apply{orientation=1;setPadding(dp(7),dp(5),dp(7),0)}
   details.addView(txt(p.name,13,true),LinearLayout.LayoutParams(-1,dp(24)))
-  val date=if(p.updatedAt>0)SimpleDateFormat("MMM d, HH:mm",Locale.getDefault()).format(Date(p.updatedAt)) else "Recently"
-  details.addView(txt("Modified: $date",9).apply{setTextColor(muted)},LinearLayout.LayoutParams(-1,dp(18)))
-  details.addView(txt("OpenGL ES 3.0  •  ${p.entityCount} objects",8).apply{setTextColor(muted)},LinearLayout.LayoutParams(-1,dp(17)))
+  val date=if(p.updatedAt>0)SimpleDateFormat("MMM d, HH:mm",Locale.getDefault()).format(Date(p.updatedAt)) else "مؤخراً"
+  details.addView(txt("آخر تعديل: $date",9).apply{setTextColor(muted)},LinearLayout.LayoutParams(-1,dp(18)))
+  details.addView(txt("عرض ثلاثي الأبعاد • ${p.entityCount} عنصر",8).apply{setTextColor(muted)},LinearLayout.LayoutParams(-1,dp(17)))
   card.addView(details,LinearLayout.LayoutParams(-1,0,.34f))
   val actions=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER_VERTICAL}
-  actions.addView(button("▶  OPEN PROJECT",index==0){open(p.id)},LinearLayout.LayoutParams(0,dp(35),1f))
+  actions.addView(button("▶  فتح المشروع",index==0){open(p.id)},LinearLayout.LayoutParams(0,dp(35),1f))
   val more=TextView(this).apply{text="•••";textSize=13f;gravity=Gravity.CENTER;setTextColor(white);background=glass(0xFF29394D.toInt(),dp(8));setOnClickListener{manage(p,this)}}
   actions.addView(more,LinearLayout.LayoutParams(dp(38),dp(35)).apply{leftMargin=dp(5)})
   card.addView(actions,LinearLayout.LayoutParams(-1,0,.23f));return card
@@ -131,9 +131,9 @@ class ProjectHubActivity:Activity(){
  private fun importProject(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},pick)}
  @Deprecated("Use Activity Result API")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==pick&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.import(this,uri)}.onSuccess{showHub();Toast.makeText(this,"تم استيراد المشروع",Toast.LENGTH_SHORT).show()}.onFailure{Toast.makeText(this,it.message?:"فشل الاستيراد",Toast.LENGTH_LONG).show()}}}
- private fun showSamples(){AlertDialog.Builder(this).setTitle("نماذج البداية").setItems(arrayOf("Desert Adventure","Physics Test Sandbox","Cyber City Prototype")){_,which->val names=listOf("Desert_Adventure_01","Physics_Test_Sandbox","Cyber_City_Prototype");val templates=listOf("3D Game","Physics Sandbox","City Scene");open(ProjectStore.create(this,names[which],templates[which]))}.show()}
+ private fun showSamples(){AlertDialog.Builder(this).setTitle("نماذج البداية").setItems(arrayOf("مغامرة الصحراء","مختبر الفيزياء","المدينة الذكية")){_,which->val names=listOf("مغامرة_الصحراء","مختبر_الفيزياء","المدينة_الذكية");val templates=listOf("3D Game","Physics Sandbox","City Scene");open(ProjectStore.create(this,names[which],templates[which]))}.show()}
  private fun manage(p:AsterProject,anchor:View){val menu=PopupMenu(this,anchor);listOf("فتح المشروع","إعادة تسمية","حذف").forEachIndexed{i,s->menu.menu.add(s).setOnMenuItemClickListener{when(i){0->open(p.id);1->rename(p);2->AlertDialog.Builder(this).setMessage("حذف ${p.name}?").setNegativeButton("إلغاء",null).setPositiveButton("حذف"){_,_->ProjectStore.delete(this,p.id);showHub()}.show()};true}};menu.show()}
- private fun rename(p:AsterProject){val e=EditText(this).apply{setText(p.name);setSingleLine()};AlertDialog.Builder(this).setTitle("إعادة تسمية project").setView(e).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->val n=e.text.toString().trim();if(n.isNotEmpty()){ProjectStore.rename(this,p.id,n);showHub()}}.show()}
+ private fun rename(p:AsterProject){val e=EditText(this).apply{setText(p.name);setSingleLine()};AlertDialog.Builder(this).setTitle("إعادة تسمية المشروع").setView(e).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->val n=e.text.toString().trim();if(n.isNotEmpty()){ProjectStore.rename(this,p.id,n);showHub()}}.show()}
  private fun open(id:String){startActivity(Intent(this,MainActivity::class.java).putExtra("project_id",id));finish()}
  private fun badge(s:String)=TextView(this).apply{text=s;textSize=8f;typeface=Typeface.DEFAULT_BOLD;setTextColor(0xFF8BEFFF.toInt());gravity=Gravity.CENTER;setPadding(dp(8),dp(5),dp(8),dp(5));background=glass(0x553CBAD1,dp(6))}
  private fun button(s:String,primary:Boolean,action:()->Unit)=TextView(this).apply{text=s;textSize=9f;typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER;setTextColor(if(primary)Color.rgb(4,35,48) else white);background=glass(if(primary)0xFF50D9EC.toInt() else 0xFF293B50.toInt(),dp(8));setOnClickListener{action()}}

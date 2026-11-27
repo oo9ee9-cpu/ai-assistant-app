@@ -44,6 +44,11 @@ class MainActivity:Activity(){
  private external fun nativeRender(deltaSeconds:Float)
  private val modelPicker=7201
  private val modelPaths=mutableListOf<String>()
+ private val undoStack=java.util.ArrayDeque<String>()
+ private lateinit var leftPanel:LinearLayout
+ private lateinit var rightPanel:LinearLayout
+ private var panelsVisible=true
+ private var undoing=false
  private var projectId=""
  private var projectName="Untitled Project"
  private var projectTemplate="3D Starter"
@@ -97,33 +102,38 @@ class MainActivity:Activity(){
  private fun buildEditor(){
   val root=LinearLayout(this).apply{orientation=1;setBackgroundColor(bg);setPadding(dp(5),dp(3),dp(5),dp(3))}
   val top=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER_VERTICAL;layoutDirection=View.LAYOUT_DIRECTION_RTL}
-  top.addView(label("✺ أستر / "+projectName,13,true),LinearLayout.LayoutParams(0,dp(42),1f))
+  top.addView(label("✺ أستر — "+projectName,13,true),LinearLayout.LayoutParams(0,dp(42),1f))
   status=label("● المحرّك يعمل",9);top.addView(status)
   top.addView(action("المشاريع"){saveProject();startActivity(Intent(this@MainActivity,ProjectHubActivity::class.java));finish()})
+  top.addView(action("تراجع"){undoLast()})
+  top.addView(action("القوائم"){panelsVisible=!panelsVisible;leftPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;rightPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;glView.requestLayout()})
   top.addView(action("إضافة +"){showAddMenu(it)})
   top.addView(action("تحريك"){gizmo=!gizmo;toast(if(gizmo)"Gizmo drag enabled" else "Camera orbit enabled")})
   top.addView(action(if(playing)"إيقاف" else "تشغيل"){togglePlay()})
-  top.addView(action("استيراد نموذج"){toast("Asset registry prototype")})
+  top.addView(action("الأصول"){showAssetBrowser()})
+  top.addView(action("استيراد نموذج"){pickModel()})
   root.addView(top)
   val work=LinearLayout(this).apply{orientation=0}
-  val left=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("التسلسل الهرمي"))}
+  leftPanel=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("التسلسل الهرمي"))}
+  val left=leftPanel
   hierarchy=LinearLayout(this).apply{orientation=1}
   left.addView(hierarchy,LinearLayout.LayoutParams(-1,0,1f));work.addView(left,LinearLayout.LayoutParams(0,-1,.22f))
   val center=LinearLayout(this).apply{orientation=1;addView(section("منظور المشهد • OpenGL ES 3.0"))}
   glView=EngineSurfaceView();center.addView(glView,LinearLayout.LayoutParams(-1,0,1f));work.addView(center,LinearLayout.LayoutParams(0,-1,.56f))
-  val right=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("الخصائص"))}
+  rightPanel=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("الخصائص"))}
+  val right=rightPanel
   inspectorName=label(selected.ifEmpty{"No selection"},14,true);right.addView(inspectorName);right.addView(section("التحويل"))
   pos=property("الموقع","اضغط للتعديل");pos.setOnClickListener{editVector(false)};right.addView(pos)
-  right.addView(property("Rotation","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("الدوران (راديان)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
-  scale=property("Scale","اضغط للتعديل");scale.setOnClickListener{editVector(true)};right.addView(scale)
-  right.addView(section("عارض المجسم"));right.addView(property("المجسم","Cube_المجسم"));right.addView(property("الخامة","Default_Lit"))
+  right.addView(property("الدوران","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("الدوران (راديان)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
+  scale=property("الحجم","اضغط للتعديل");scale.setOnClickListener{editVector(true)};right.addView(scale)
+  right.addView(section("عارض المجسم"));right.addView(property("المجسم","Cube_المجسم"));right.addView(property("الخامة","حسب النموذج المستورد"))
   right.addView(section("الفيزياء"));right.addView(property("جسم فيزيائي","اضغط للضبط").apply{setOnClickListener{editPhysics()}});right.addView(property("السرعة","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("السرعة",14){a->ids[selected]?.let{id->nativeSetVelocity(id,a[0],a[1],a[2]);saveProject()}}}})
   work.addView(right,LinearLayout.LayoutParams(0,-1,.22f))
-  root.addView(work,LinearLayout.LayoutParams(-1,0,1f));root.addView(label("C++20 CORE • PROJECT LOCAL SAVE • ANDROID",9),LinearLayout.LayoutParams(-1,dp(24)))
+  root.addView(work,LinearLayout.LayoutParams(-1,0,1f));root.addView(label("نواة C++20 • حفظ محلي للمشروع • أندرويد",9),LinearLayout.LayoutParams(-1,dp(24)))
   setContentView(root);rebuildHierarchy();refreshInspector()
  }
  private fun showAddMenu(anchor:View){val m=PopupMenu(this,anchor);listOf("Cube","Sphere","Light","Camera").forEachIndexed{i,n->m.menu.add(n).setOnMenuItemClickListener{
-  nativeAddEntity(i);val id=nextId++;val name=when(i){2->"Point Light_"+id;3->"Camera_"+id;else->n+"_"+id};names.add(name);ids[name]=id;select(name);saveProject();true
+  recordUndo();nativeAddEntity(i);val id=nextId++;val name=when(i){2->"Point Light_"+id;3->"Camera_"+id;else->n+"_"+id};names.add(name);ids[name]=id;select(name);saveProject();true
  }};m.show()}
  private fun select(n:String){selected=n;ids[n]?.let{nativeSelectEntity(it)};inspectorName.text=n;rebuildHierarchy();refreshInspector()}
  private fun rebuildHierarchy(){hierarchy.removeAllViews();names.forEach{n->val row=label((if(n==selected)"◆ " else "◇ ")+n,11);row.setPadding(dp(7),dp(8),dp(2),dp(8));row.setBackgroundColor(if(n==selected)Color.rgb(35,62,77)else Color.TRANSPARENT);row.setOnClickListener{select(n)};hierarchy.addView(row)}}
@@ -131,13 +141,13 @@ class MainActivity:Activity(){
  private fun editVector(isScale:Boolean){val id=ids[selected]?:return;val v=nativeGetTransform(id);val off=if(isScale)3 else 0
   val inputs=Array(3){i->EditText(this).apply{setSingleLine();setText(v[off+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
   val box=LinearLayout(this).apply{orientation=0;setPadding(dp(8),0,dp(8),0);inputs.forEach{addView(it,LinearLayout.LayoutParams(0,dp(52),1f))}}
-  AlertDialog.Builder(this).setTitle(if(isScale)"تعديل الحجم" else "تعديل الموقع").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->val a=FloatArray(3){i->inputs[i].text.toString().toFloatOrNull()?:v[off+i]};if(isScale)nativeSetScale(id,a[0],a[1],a[2])else nativeSetPosition(id,a[0],a[1],a[2]);refreshInspector();glView.requestRender();saveProject()}.show()
+  AlertDialog.Builder(this).setTitle(if(isScale)"تعديل الحجم" else "تعديل الموقع").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->recordUndo();val a=FloatArray(3){i->inputs[i].text.toString().toFloatOrNull()?:v[off+i]};if(isScale)nativeSetScale(id,a[0],a[1],a[2])else nativeSetPosition(id,a[0],a[1],a[2]);refreshInspector();glView.requestRender();saveProject()}.show()
  }
  private fun editTripleDialog(title:String,offset:Int,apply:(FloatArray)->Unit){
   val id=ids[selected]?:return;val v=nativeGetTransform(id)
   val fields=Array(3){i->EditText(this).apply{setSingleLine();setText(v[offset+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
   val box=LinearLayout(this).apply{orientation=0;setPadding(dp(8),0,dp(8),0);fields.forEach{addView(it,LinearLayout.LayoutParams(0,dp(52),1f))}}
-  AlertDialog.Builder(this).setTitle(title).setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->apply(FloatArray(3){i->fields[i].text.toString().toFloatOrNull()?:v[offset+i]})}.show()
+  AlertDialog.Builder(this).setTitle(title).setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->recordUndo();apply(FloatArray(3){i->fields[i].text.toString().toFloatOrNull()?:v[offset+i]})}.show()
  }
  private fun editPhysics(){
   val id=ids[selected]?:return;val v=nativeGetTransform(id)
@@ -147,16 +157,19 @@ class MainActivity:Activity(){
   val friction=EditText(this).apply{hint="الاحتكاك (0..1)";setText(v[11].toString());inputType=8194}
   val bounce=EditText(this).apply{hint="الارتداد (0..1)";setText(v[12].toString());inputType=8194}
   val box=LinearLayout(this).apply{orientation=1;setPadding(dp(12),0,dp(12),0);addView(fixed);addView(gravity);addView(mass);addView(friction);addView(bounce)}
-  AlertDialog.Builder(this).setTitle("جسم فيزيائي Properties").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->
-   nativeSetStatic(id,fixed.isChecked)
+  AlertDialog.Builder(this).setTitle("إعدادات الفيزياء").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->
+   recordUndo();nativeSetStatic(id,fixed.isChecked)
    nativeSetBodyProperties(id,mass.text.toString().toFloatOrNull()?:v[10],friction.text.toString().toFloatOrNull()?:v[11],bounce.text.toString().toFloatOrNull()?:v[12],gravity.isChecked)
    saveProject();glView.requestRender()
   }.show()
  }
+ private fun recordUndo(){if(undoing||projectId.isEmpty())return;saveProject();undoStack.addLast(ProjectStore.read(this,projectId).toString());while(undoStack.size>30)undoStack.removeFirst()}
+ private fun undoLast(){if(undoStack.isEmpty()){toast("لا توجد تعديلات للتراجع عنها");return};val raw=undoStack.removeLast();runCatching{ProjectStore.writeRaw(this,projectId,org.json.JSONObject(raw));undoing=true;loadProject();rebuildHierarchy();refreshInspector();glView.requestRender();undoing=false;toast("تم التراجع عن آخر تعديل")}.onFailure{undoing=false;toast("تعذر التراجع عن التعديل")}}
+ private fun showAssetBrowser(){val files=ProjectStore.assetFiles(this,projectId);if(files.isEmpty()){AlertDialog.Builder(this).setTitle("متصفح الأصول").setMessage("لا توجد نماذج مستوردة. أضف ملف GLB أو glTF أولاً.").setPositiveButton("استيراد نموذج"){_,_->pickModel()}.setNegativeButton("إغلاق",null).show();return};AlertDialog.Builder(this).setTitle("أصول المشروع").setItems(files.map{it.name}.toTypedArray()){_,which->val file=files[which];val relative=file.relativeTo(File(ProjectStore.storagePath(this),projectId)).invariantSeparatorsPath;if(!modelPaths.contains(relative)){recordUndo();modelPaths.add(relative);saveProject()};glView.queueEvent{val msg=nativeImportModel(file.absolutePath);runOnUiThread{toast(msg)}}}.setNegativeButton("إغلاق",null).show()}
  private fun pickModel(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("model/gltf-binary","model/gltf+json","application/octet-stream"))},modelPicker)}
  @Deprecated("Use Activity Result API")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
- private fun togglePlay(){playing=!playing;if(playing)nativeStartEngine()else nativeStopEngine();status.text=if(playing)"● CORE ONLINE" else "● CORE PAUSED";toast(if(playing)"Play started" else "Play stopped")}
+ private fun togglePlay(){playing=!playing;if(playing)nativeStartEngine()else nativeStopEngine();status.text=if(playing)"● المحرك يعمل" else "● المحرك متوقف";toast(if(playing)"بدأ التشغيل" else "تم إيقاف التشغيل")}
  private fun label(s:String,size:Int,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size.toFloat();setTextColor(if(s.contains("CORE ONLINE"))Color.rgb(105,220,170)else white);if(bold)typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER_VERTICAL;layoutDirection=View.LAYOUT_DIRECTION_RTL;textDirection=View.TEXT_DIRECTION_FIRST_STRONG;setPadding(dp(6),dp(5),dp(5),dp(5))}
  private fun section(s:String)=label(s,9,true).apply{setTextColor(muted);setBackgroundColor(head)}
  private fun property(k:String,v:String)=label("$k   $v",9).apply{setPadding(dp(7),dp(8),dp(3),dp(8))}

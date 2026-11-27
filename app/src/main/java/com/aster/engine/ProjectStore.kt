@@ -62,12 +62,16 @@ object ProjectStore {
  fun entity(name:String,kind:Int,x:Float,y:Float,z:Float,sx:Float=1f,sy:Float=1f,sz:Float=1f,rx:Float=0f,ry:Float=0f,rz:Float=0f,isStatic:Boolean=false,mass:Float=1f,friction:Float=.65f,restitution:Float=.05f,useGravity:Boolean=true,vx:Float=0f,vy:Float=0f,vz:Float=0f)=JSONObject().put("name",name).put("kind",kind).put("x",x).put("y",y).put("z",z).put("sx",sx).put("sy",sy).put("sz",sz).put("rx",rx).put("ry",ry).put("rz",rz).put("isStatic",isStatic).put("mass",mass).put("friction",friction).put("restitution",restitution).put("useGravity",useGravity).put("vx",vx).put("vy",vy).put("vz",vz)
  fun read(c:Context,id:String)=JSONObject(file(c,id).readText())
  fun assetFolder(c:Context,id:String)=File(folder(c,id),"Assets/Models").apply{mkdirs()}
+ fun assetFiles(c:Context,id:String):List<File> = assetFolder(c,id).listFiles()?.filter{it.isFile && it.extension.lowercase(Locale.ROOT) in setOf("glb","gltf")}?.sortedBy{it.name.lowercase(Locale.ROOT)} ?: emptyList()
  fun importModel(c:Context,id:String,uri:Uri):String{
   val name=uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.ifBlank{null}?: "model.glb"
   val ext=name.substringAfterLast('.', "").lowercase(Locale.ROOT);require(ext=="glb"||ext=="gltf"){"اختر ملف glb أو gltf"}
-  val target=File(assetFolder(c,id),name.replace(Regex("[^A-Za-z0-9._-]"),"_"))
-  (c.contentResolver.openInputStream(uri)?:error("تعذر فتح الملف")).use{input->target.outputStream().use{input.copyTo(it)}}
-  require(target.length()>0){"الملف فارغ"};return target.relativeTo(folder(c,id)).invariantSeparatorsPath
+  val safeName=name.replace(Regex("[^A-Za-z0-9._-]"),"_").ifBlank{"model.$ext"}
+  val dir=assetFolder(c,id);var target=File(dir,safeName);var suffix=1
+  while(target.exists()){val stem=safeName.substringBeforeLast('.',safeName);target=File(dir,"${stem}_${suffix++}.$ext")}
+  try{(c.contentResolver.openInputStream(uri)?:error("تعذر فتح الملف")).use{input->target.outputStream().use{output->input.copyTo(output)}};require(target.length()>0){"الملف فارغ"}}
+  catch(error:Exception){target.delete();throw error}
+  return target.relativeTo(folder(c,id)).invariantSeparatorsPath
  }
  fun writeRaw(c:Context,id:String,data:JSONObject){writeJson(file(c,id),data)}
 
