@@ -1,8 +1,7 @@
 #include "aster/EngineRuntime.hpp"
 #include "aster/OpenGLES3Renderer.hpp"
 #include <jni.h>
-#include <memory>
-#include <algorithm>
+#include <memory>\n#include <algorithm>
 namespace{aster::Engine engine;std::unique_ptr<aster::OpenGLES3Renderer>renderer;}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeResetScene(JNIEnv*,jobject){engine.GetScene().Clear();engine.Select(0);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStartEngine(JNIEnv*,jobject){engine.Start();}
