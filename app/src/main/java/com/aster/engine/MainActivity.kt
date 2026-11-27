@@ -30,12 +30,12 @@ class MainActivity:Activity(){
  private external fun nativeZoom(factor:Float)
  private external fun nativePickGizmoAxis(x:Float,y:Float):Int
  private external fun nativeDragGizmoAxis(axis:Int,dx:Float,dy:Float)
- private external fun nativeSetالموقع(id:Int,x:Float,y:Float,z:Float)
+ private external fun nativeSetPosition(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeSetScale(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeSetRotation(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeSetStatic(id:Int,value:Boolean)
  private external fun nativeSetBodyProperties(id:Int,mass:Float,friction:Float,restitution:Float,gravity:Boolean)
- private external fun nativeSetالسرعة(id:Int,x:Float,y:Float,z:Float)
+ private external fun nativeSetVelocity(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeGetTransform(id:Int):FloatArray
  private external fun nativeSurfaceCreated()
  private external fun nativeSurfaceChanged(width:Int,height:Int)
@@ -71,12 +71,12 @@ class MainActivity:Activity(){
    val e=entities.getJSONObject(i);val kind=e.optInt("kind",0).coerceIn(0,3)
    nativeAddEntity(kind);val id=nextId++;val n=e.optString("name","Object_"+id)
    names.add(n);ids[n]=id
-   nativeSetالموقع(id,e.optDouble("x",0.0).toFloat(),e.optDouble("y",0.0).toFloat(),e.optDouble("z",0.0).toFloat())
+   nativeSetPosition(id,e.optDouble("x",0.0).toFloat(),e.optDouble("y",0.0).toFloat(),e.optDouble("z",0.0).toFloat())
    nativeSetScale(id,e.optDouble("sx",1.0).toFloat(),e.optDouble("sy",1.0).toFloat(),e.optDouble("sz",1.0).toFloat())
    nativeSetRotation(id,e.optDouble("rx",0.0).toFloat(),e.optDouble("ry",0.0).toFloat(),e.optDouble("rz",0.0).toFloat())
    nativeSetStatic(id,e.optBoolean("isStatic",false))
    nativeSetBodyProperties(id,e.optDouble("mass",1.0).toFloat(),e.optDouble("friction",.65).toFloat(),e.optDouble("restitution",.05).toFloat(),e.optBoolean("useGravity",true))
-   nativeSetالسرعة(id,e.optDouble("vx",0.0).toFloat(),e.optDouble("vy",0.0).toFloat(),e.optDouble("vz",0.0).toFloat())
+   nativeSetVelocity(id,e.optDouble("vx",0.0).toFloat(),e.optDouble("vy",0.0).toFloat(),e.optDouble("vz",0.0).toFloat())
   }
   selected=ids.keys.lastOrNull()?: "";if(selected.isNotEmpty())nativeSelectEntity(ids[selected]!!)
  }
@@ -111,7 +111,7 @@ class MainActivity:Activity(){
   right.addView(property("Rotation","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("الدوران (راديان)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
   scale=property("Scale","اضغط للتعديل");scale.setOnClickListener{editVector(true)};right.addView(scale)
   right.addView(section("عارض المجسم"));right.addView(property("المجسم","Cube_المجسم"));right.addView(property("الخامة","Default_Lit"))
-  right.addView(section("الفيزياء"));right.addView(property("جسم فيزيائي","اضغط للضبط").apply{setOnClickListener{editPhysics()}});right.addView(property("السرعة","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("السرعة",14){a->ids[selected]?.let{id->nativeSetالسرعة(id,a[0],a[1],a[2]);saveProject()}}}})
+  right.addView(section("الفيزياء"));right.addView(property("جسم فيزيائي","اضغط للضبط").apply{setOnClickListener{editPhysics()}});right.addView(property("السرعة","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("السرعة",14){a->ids[selected]?.let{id->nativeSetVelocity(id,a[0],a[1],a[2]);saveProject()}}}})
   work.addView(right,LinearLayout.LayoutParams(0,-1,.22f))
   root.addView(work,LinearLayout.LayoutParams(-1,0,1f));root.addView(label("C++20 CORE • PROJECT LOCAL SAVE • ANDROID",9),LinearLayout.LayoutParams(-1,dp(24)))
   setContentView(root);rebuildHierarchy();refreshInspector()
@@ -125,7 +125,7 @@ class MainActivity:Activity(){
  private fun editVector(isScale:Boolean){val id=ids[selected]?:return;val v=nativeGetTransform(id);val off=if(isScale)3 else 0
   val inputs=Array(3){i->EditText(this).apply{setSingleLine();setText(v[off+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
   val box=LinearLayout(this).apply{orientation=0;setPadding(dp(8),0,dp(8),0);inputs.forEach{addView(it,LinearLayout.LayoutParams(0,dp(52),1f))}}
-  AlertDialog.Builder(this).setTitle(if(isScale)"تعديل الحجم" else "Edit الموقع").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->val a=FloatArray(3){i->inputs[i].text.toString().toFloatOrNull()?:v[off+i]};if(isScale)nativeSetScale(id,a[0],a[1],a[2])else nativeSetالموقع(id,a[0],a[1],a[2]);refreshInspector();glView.requestRender();saveProject()}.show()
+  AlertDialog.Builder(this).setTitle(if(isScale)"تعديل الحجم" else "Edit الموقع").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->val a=FloatArray(3){i->inputs[i].text.toString().toFloatOrNull()?:v[off+i]};if(isScale)nativeSetScale(id,a[0],a[1],a[2])else nativeSetPosition(id,a[0],a[1],a[2]);refreshInspector();glView.requestRender();saveProject()}.show()
  }
  private fun editTripleDialog(title:String,offset:Int,apply:(FloatArray)->Unit){
   val id=ids[selected]?:return;val v=nativeGetTransform(id)
