@@ -24,7 +24,8 @@ void main(){gl_Position=uMvp*vec4(aPosition,1.0);vNormal=mat3(uModel)*aNormal;vU
 const char* meshFragment=R"(#version 300 es
 precision highp float;in vec3 vNormal;in vec2 vUv;out vec4 outColor;
 uniform vec4 uBaseColor;uniform sampler2D uBaseTexture;uniform int uHasTexture;
-void main(){vec3 n=normalize(vNormal);vec3 lightDir=normalize(vec3(-0.4,0.8,0.5));float diffuse=max(dot(n,lightDir),0.0);float light=0.28+0.72*diffuse;vec4 albedo=uBaseColor;if(uHasTexture==1)albedo*=texture(uBaseTexture,vUv);outColor=vec4(albedo.rgb*light,albedo.a);})";
+void main(){vec3 n=normalize(vNormal);vec3 lightDir=normalize(vec3(-0.4,0.8,0.5));float diffuse=max(dot(n,lightDir),0.0);// Stronger ambient fill keeps unlit faces and imported materials readable.
+float light=0.48+0.52*diffuse;vec4 albedo=uBaseColor;if(uHasTexture==1)albedo*=texture(uBaseTexture,vUv);outColor=vec4(albedo.rgb*light,albedo.a);})";
 const char* lineVertex=R"(#version 300 es
 layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aColor;
 uniform mat4 uMvp;out vec3 vColor;void main(){gl_Position=uMvp*vec4(aPosition,1.0);vColor=aColor;})";
