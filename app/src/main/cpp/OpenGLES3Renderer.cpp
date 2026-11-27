@@ -1,4 +1,4 @@
-#include "aster/OpenGLES3Renderer.hpp"
+#include "aster/OpenGLES3Renderer.hpp"\n#include <GLES3/gl3.h>
 #include <GLES3/gl3.h>
 #include <algorithm>
 #include <array>
@@ -75,7 +75,7 @@ Mat4 OpenGLES3Renderer::ViewProjection()const{
 void OpenGLES3Renderer::Initialize(){
  program_=LinkProgram(meshVertex,meshFragment);lineProgram_=LinkProgram(lineVertex,lineFragment);
  if(!program_||!lineProgram_)return;
- mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");
+ mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");baseColor_=glGetUniformLocation(program_,"uBaseColor");baseTexture_=glGetUniformLocation(program_,"uBaseTexture");hasTexture_=glGetUniformLocation(program_,"uHasTexture");glUniform1i(baseTexture_,0);glUniform4f(baseColor_,.16f,.48f,.68f,1);glUniform1i(hasTexture_,0);
  lineMvp_=glGetUniformLocation(lineProgram_,"uMvp");
  const std::vector<float> vertices=BuildCubeVertices();
  glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);
@@ -144,10 +144,37 @@ void OpenGLES3Renderer::RenderFrame(){
   const Mat4 mvp=vp*model;glUniformMatrix4fv(mvp_,1,GL_FALSE,mvp.m);glUniformMatrix4fv(model_,1,GL_FALSE,model.m);
   glDrawArrays(GL_TRIANGLES,0,36);
  }
+ glBindVertexArray(0);
+ for(const auto& model:imported_)for(const auto& primitive:model->primitives){
+  glUseProgram(program_);glBindVertexArray(primitive.vao);Mat4 identity=Mat4::Identity();
+  glUniformMatrix4fv(mvp_,1,GL_FALSE,vp.m);glUniformMatrix4fv(model_,1,GL_FALSE,identity.m);
+  ImportedMaterial mat;if(primitive.materialIndex>=0&&static_cast<size_t>(primitive.materialIndex)<model->materials.size())mat=model->materials[primitive.materialIndex];
+  glUniform4fv(baseColor_,1,mat.baseColor);glUniform1i(hasTexture_,mat.baseColorTexture>=0?1:0);model->assets.BindBaseColor(mat,0);
+  glDrawElements(GL_TRIANGLES,primitive.indexCount,GL_UNSIGNED_INT,nullptr);
+ }
  glBindVertexArray(0);DrawLines(vp);
 }
+bool OpenGLES3Renderer::ImportModel(const std::string& path,std::string& error){
+ ImportResult parsed=GltfImporter::Load(path);if(!parsed){error=parsed.error;return false;}
+ auto gpu=std::make_unique<GpuModel>();gpu->materials=parsed.model.materials;
+ if(!gpu->assets.Upload(parsed.model)){error="تعذر رفع خامات النموذج";return false;}
+ for(const auto& mesh:parsed.model.meshes)for(const auto& src:mesh.primitives){
+  if(src.vertices.empty()||src.indices.empty())continue;
+  std::vector<float> v;v.reserve(src.vertices.size()*8);
+  for(const auto& x:src.vertices)v.insert(v.end(),{x.position[0],x.position[1],x.position[2],x.normal[0],x.normal[1],x.normal[2],x.uv[0],x.uv[1]});
+  GpuPrimitive p;p.indexCount=static_cast<int>(src.indices.size());p.materialIndex=src.materialIndex;
+  glGenVertexArrays(1,&p.vao);glGenBuffers(1,&p.vbo);glGenBuffers(1,&p.ebo);glBindVertexArray(p.vao);
+  glBindBuffer(GL_ARRAY_BUFFER,p.vbo);glBufferData(GL_ARRAY_BUFFER,v.size()*sizeof(float),v.data(),GL_STATIC_DRAW);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,p.ebo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,src.indices.size()*sizeof(uint32_t),src.indices.data(),GL_STATIC_DRAW);
+  glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,8*sizeof(float),nullptr);
+  glEnableVertexAttribArray(1);glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,8*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
+  glEnableVertexAttribArray(2);glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,8*sizeof(float),reinterpret_cast<void*>(6*sizeof(float)));
+  glBindVertexArray(0);gpu->primitives.push_back(p);
+ }
+ if(gpu->primitives.empty()){error="لا يحتوي الملف على مجسمات مثلثية";return false;}imported_.push_back(std::move(gpu));error.clear();return true;
+}
 void OpenGLES3Renderer::Shutdown(){
- if(vbo_)glDeleteBuffers(1,&vbo_);if(vao_)glDeleteVertexArrays(1,&vao_);
+ for(auto& m:imported_)for(auto& p:m->primitives){if(p.ebo)glDeleteBuffers(1,&p.ebo);if(p.vbo)glDeleteBuffers(1,&p.vbo);if(p.vao)glDeleteVertexArrays(1,&p.vao);}imported_.clear();if(vbo_)glDeleteBuffers(1,&vbo_);if(vao_)glDeleteVertexArrays(1,&vao_);
  if(program_)glDeleteProgram(program_);if(lineProgram_)glDeleteProgram(lineProgram_);
  vbo_=vao_=program_=lineProgram_=0;
 }

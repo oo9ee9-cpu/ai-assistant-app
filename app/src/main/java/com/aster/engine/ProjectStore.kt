@@ -4,7 +4,7 @@ import android.net.Uri
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.util.UUID
+import java.util.UUID\nimport java.util.Locale
 import java.util.zip.ZipInputStream
 
 data class AsterProject(val id:String,val name:String,val template:String,val updatedAt:Long,val entityCount:Int)
@@ -22,6 +22,16 @@ object ProjectStore {
  fun create(c:Context,name:String,template:String):String{val id=UUID.randomUUID().toString();val a=JSONArray();if(template!="Empty"){a.put(entity("Cube_01",0,0f,0f,0f));a.put(entity("Cube_02",0,2f,0f,0f))};val j=JSONObject().put("format","aster-project").put("version",1).put("id",id).put("name",name).put("template",template).put("createdAt",System.currentTimeMillis()).put("updatedAt",System.currentTimeMillis()).put("entities",a);file(c,id).writeText(j.toString(2));return id}
  fun entity(name:String,kind:Int,x:Float,y:Float,z:Float,sx:Float=1f,sy:Float=1f,sz:Float=1f,rx:Float=0f,ry:Float=0f,rz:Float=0f,isStatic:Boolean=false,mass:Float=1f,friction:Float=.65f,restitution:Float=.05f,useGravity:Boolean=true,vx:Float=0f,vy:Float=0f,vz:Float=0f)=JSONObject().put("name",name).put("kind",kind).put("x",x).put("y",y).put("z",z).put("sx",sx).put("sy",sy).put("sz",sz).put("rx",rx).put("ry",ry).put("rz",rz).put("isStatic",isStatic).put("mass",mass).put("friction",friction).put("restitution",restitution).put("useGravity",useGravity).put("vx",vx).put("vy",vy).put("vz",vz)
  fun read(c:Context,id:String)=JSONObject(file(c,id).readText())
+ fun assetFolder(c:Context,id:String)=File(folder(c,id),"Assets/Models").apply{mkdirs()}
+ fun importModel(c:Context,id:String,uri:Uri):String{
+  val name=uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.ifBlank{null}?: "model.glb"
+  val ext=name.substringAfterLast('.', "").lowercase(Locale.ROOT);require(ext=="glb"||ext=="gltf"){"اختر ملف glb أو gltf"}
+  val target=File(assetFolder(c,id),name.replace(Regex("[^A-Za-z0-9._-]"),"_"))
+  (c.contentResolver.openInputStream(uri)?:error("تعذر فتح الملف")).use{input->target.outputStream().use{input.copyTo(it)}}
+  require(target.length()>0){"الملف فارغ"};return target.relativeTo(folder(c,id)).invariantSeparatorsPath
+ }
+ fun writeRaw(c:Context,id:String,data:JSONObject){val f=file(c,id);val tmp=File(f.parentFile,"project.json.tmp");tmp.writeText(data.toString(2));if(!tmp.renameTo(f)){f.writeText(data.toString(2));tmp.delete()}}
+
  fun save(c:Context,id:String,name:String,template:String,entities:JSONArray){val f=file(c,id);val j=runCatching{JSONObject(f.readText())}.getOrElse{JSONObject()};j.put("format","aster-project").put("version",1).put("id",id).put("name",name).put("template",template).put("createdAt",j.optLong("createdAt",System.currentTimeMillis())).put("updatedAt",System.currentTimeMillis()).put("entities",entities);val tmp=File(f.parentFile,"project.json.tmp");tmp.writeText(j.toString(2));if(!tmp.renameTo(f)){f.writeText(j.toString(2));tmp.delete()}}
  fun import(c:Context,uri:Uri):String{
   val bytes=(c.contentResolver.openInputStream(uri)?:error("Cannot open selected file")).use{it.readBytes()}
