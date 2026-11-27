@@ -72,6 +72,7 @@ class MainActivity:Activity(){
  private lateinit var editorWork:LinearLayout
  private lateinit var editorFooter:TextView
  private lateinit var viewportHeader:View
+ private lateinit var playJoystick:View
  private val topEditorControls=mutableListOf<View>()
  private lateinit var hierarchy:LinearLayout
  private lateinit var inspectorName:TextView
@@ -143,7 +144,7 @@ class MainActivity:Activity(){
   left.addView(hierarchy,LinearLayout.LayoutParams(-1,0,1f));work.addView(left,LinearLayout.LayoutParams(0,-1,.22f))
   val center=LinearLayout(this).apply{orientation=1;viewportHeader=section("منظور المشهد • OpenGL ES 3.0");addView(viewportHeader)}
   val viewport=FrameLayout(this);glView=EngineSurfaceView();viewport.addView(glView,FrameLayout.LayoutParams(-1,-1))
-  val joystick=JoystickView(this){forward,strafe->if(playing)glView.queueEvent{nativePlayMove(forward,strafe,1f/60f)}}
+  val joystick=JoystickView(this){forward,strafe->if(playing)glView.queueEvent{nativePlayMove(forward,strafe,1f/60f)}};playJoystick=joystick
   viewport.addView(joystick,FrameLayout.LayoutParams(dp(148),dp(148),Gravity.BOTTOM or Gravity.LEFT).apply{leftMargin=dp(14);bottomMargin=dp(14)})
   joystick.visibility=View.GONE;center.addView(viewport,LinearLayout.LayoutParams(-1,0,1f));work.addView(center,LinearLayout.LayoutParams(0,-1,.56f))
   rightPanel=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("الخصائص"))}
@@ -258,11 +259,11 @@ class MainActivity:Activity(){
    nativeStartEngine();if(cameraTarget>0)nativeSetThirdPerson(cameraTarget,true)
    playing=true;playButton.text="↩ العودة إلى التطوير";status.visibility=View.GONE
    for(i in 0 until editorTop.childCount){val child=editorTop.getChildAt(i);child.visibility=if(child===playButton)View.VISIBLE else View.GONE}
-   leftPanel.visibility=View.GONE;rightPanel.visibility=View.GONE;viewportHeader.visibility=View.GONE;editorFooter.visibility=View.GONE;toast("بدأت التجربة — اسحب يمين الشاشة لتدوير الكاميرا")
+   leftPanel.visibility=View.GONE;rightPanel.visibility=View.GONE;viewportHeader.visibility=View.GONE;editorFooter.visibility=View.GONE;playJoystick.visibility=View.VISIBLE;toast("بدأت التجربة — اسحب يمين الشاشة لتدوير الكاميرا")
   }else{
    nativeSetThirdPerson(0,false);nativeStopEngine();playing=false;playButton.text="▶ تجربة اللعب";status.visibility=View.VISIBLE
    for(i in 0 until editorTop.childCount)editorTop.getChildAt(i).visibility=View.VISIBLE
-   leftPanel.visibility=View.VISIBLE;rightPanel.visibility=View.VISIBLE;viewportHeader.visibility=View.VISIBLE;editorFooter.visibility=View.VISIBLE;refreshInspector();saveProject();glView.requestRender();toast("عدت إلى وضع التطوير")
+   leftPanel.visibility=View.VISIBLE;rightPanel.visibility=View.VISIBLE;viewportHeader.visibility=View.VISIBLE;editorFooter.visibility=View.VISIBLE;playJoystick.visibility=View.GONE;refreshInspector();saveProject();glView.requestRender();toast("عدت إلى وضع التطوير")
   }
  }
  private fun showModelSources(){
