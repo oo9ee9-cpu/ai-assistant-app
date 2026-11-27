@@ -131,7 +131,7 @@ class MainActivity:Activity(){
  private fun editVector(isScale:Boolean){val id=ids[selected]?:return;val v=nativeGetTransform(id);val off=if(isScale)3 else 0
   val inputs=Array(3){i->EditText(this).apply{setSingleLine();setText(v[off+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
   val box=LinearLayout(this).apply{orientation=0;setPadding(dp(8),0,dp(8),0);inputs.forEach{addView(it,LinearLayout.LayoutParams(0,dp(52),1f))}}
-  AlertDialog.Builder(this).setTitle(if(isScale)"تعديل الحجم" else "Edit الموقع").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->val a=FloatArray(3){i->inputs[i].text.toString().toFloatOrNull()?:v[off+i]};if(isScale)nativeSetScale(id,a[0],a[1],a[2])else nativeSetPosition(id,a[0],a[1],a[2]);refreshInspector();glView.requestRender();saveProject()}.show()
+  AlertDialog.Builder(this).setTitle(if(isScale)"تعديل الحجم" else "تعديل الموقع").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->val a=FloatArray(3){i->inputs[i].text.toString().toFloatOrNull()?:v[off+i]};if(isScale)nativeSetScale(id,a[0],a[1],a[2])else nativeSetPosition(id,a[0],a[1],a[2]);refreshInspector();glView.requestRender();saveProject()}.show()
  }
  private fun editTripleDialog(title:String,offset:Int,apply:(FloatArray)->Unit){
   val id=ids[selected]?:return;val v=nativeGetTransform(id)
@@ -176,7 +176,7 @@ class MainActivity:Activity(){
    setOnTouchListener{_,e->when(e.actionMasked){
     MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;activeAxis=if(gizmo)nativePickGizmoAxis(e.x,e.y)else 0;true}
     MotionEvent.ACTION_POINTER_DOWN->{oldDist=dist(e);x0=midX(e);y0=midY(e);true}
-    MotionEvent.ACTION_تحريك->{if(e.pointerCount>=2){val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val dx=e.x-x0;val dy=e.y-y0;if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy);x0=e.x;y0=e.y};requestRender();true}
+    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val dx=e.x-x0;val dy=e.y-y0;if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy);x0=e.x;y0=e.y};requestRender();true}
     MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->{oldDist=0f;activeAxis=0;true};else->true
    }}
   }
