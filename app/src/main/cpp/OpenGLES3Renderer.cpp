@@ -173,18 +173,17 @@ void OpenGLES3Renderer::RenderFrame(){
   glUniform1i(selected_,e.id==engine_->Selected()?1:0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);glDrawArrays(GL_TRIANGLES,0,36);
  }
  glBindVertexArray(0);
- for(const auto& model:imported_)for(const auto& primitive:model->primitives){
-  glUseProgram(program_);glBindVertexArray(primitive.vao);Mat4 identity=Mat4::Identity();
-  glUniformMatrix4fv(mvp_,1,GL_FALSE,vp.m);glUniformMatrix4fv(model_,1,GL_FALSE,identity.m);
+ for(const auto& model:imported_){const Entity* owner=scene_->Find(model->entityId);if(!owner||!owner->visible)continue;const Mat4 transform=Mat4::Translation(owner->transform.position)*Mat4::RotationZ(owner->transform.rotation.z)*Mat4::RotationY(owner->transform.rotation.y)*Mat4::RotationX(owner->transform.rotation.x)*Mat4::Scale(owner->transform.scale);const Mat4 modelMvp=vp*transform;for(const auto& primitive:model->primitives){glUseProgram(program_);glBindVertexArray(primitive.vao);glUniformMatrix4fv(mvp_,1,GL_FALSE,modelMvp.m);glUniformMatrix4fv(model_,1,GL_FALSE,transform.m);
   ImportedMaterial mat;if(primitive.materialIndex>=0&&static_cast<size_t>(primitive.materialIndex)<model->materials.size())mat=model->materials[primitive.materialIndex];
   glUniform4fv(baseColor_,1,mat.baseColor);glUniform1i(hasTexture_,mat.baseColorTexture>=0?1:0);glUniform1f(metallic_,mat.metallic);glUniform1f(roughness_,mat.roughness);glUniform1i(selected_,0);model->assets.BindBaseColor(mat,0);
-  glDrawElements(GL_TRIANGLES,primitive.indexCount,GL_UNSIGNED_INT,nullptr);
+  glUniform1i(selected_,owner->id==engine_->Selected()?1:0);glDrawElements(GL_TRIANGLES,primitive.indexCount,GL_UNSIGNED_INT,nullptr);
+  }
  }
  glBindVertexArray(0);DrawLines(vp);
 }
-bool OpenGLES3Renderer::ImportModel(const std::string& path,std::string& error){
+bool OpenGLES3Renderer::ImportModel(const std::string& path,EntityId entityId,std::string& error){
  ImportResult parsed=GltfImporter::Load(path);if(!parsed){error=parsed.error;return false;}
- auto gpu=std::make_unique<GpuModel>();gpu->materials=parsed.model.materials;
+ auto gpu=std::make_unique<GpuModel>();gpu->entityId=entityId;gpu->materials=parsed.model.materials;
  if(!gpu->assets.Upload(parsed.model)){error="تعذر رفع خامات النموذج";return false;}
  for(const auto& mesh:parsed.model.meshes)for(const auto& src:mesh.primitives){
   if(src.vertices.empty()||src.indices.empty())continue;

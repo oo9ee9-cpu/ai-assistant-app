@@ -16,12 +16,13 @@ import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONArray
+import org.json.JSONObject
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 class MainActivity:Activity(){
  companion object{init{System.loadLibrary("aster_engine")}}
- private external fun nativeImportModel(path:String):String
+ private external fun nativeImportModel(path:String,entityId:Int):String
  private external fun nativeResetScene()
  private external fun nativeStartEngine()
  private external fun nativeStopEngine()
@@ -48,6 +49,10 @@ class MainActivity:Activity(){
  private external fun nativeRender(deltaSeconds:Float)
  private val modelPicker=7201
  private val modelPaths=mutableListOf<String>()
+ private val modelByEntity=linkedMapOf<String,String>()
+ private val scriptsByEntity=linkedMapOf<String,String>()
+ private val componentsByEntity=linkedMapOf<String,JSONObject>()
+ private val materialsByEntity=linkedMapOf<String,JSONObject>()
  private val undoStack=java.util.ArrayDeque<String>()
  private lateinit var leftPanel:LinearLayout
  private lateinit var rightPanel:LinearLayout
@@ -79,13 +84,14 @@ class MainActivity:Activity(){
  }
  private fun loadProject(){
   val data=ProjectStore.read(this,projectId);projectName=data.optString("name","Untitled Project");projectTemplate=data.optString("template","3D Starter")
-  modelPaths.clear();val saved=data.optJSONArray("assets")?:JSONArray();for(i in 0 until saved.length())modelPaths.add(saved.optString(i))
+  modelPaths.clear();val saved=data.optJSONArray("assets")?:JSONArray();for(i in 0 until saved.length())modelPaths.add(saved.optString(i));modelByEntity.clear();scriptsByEntity.clear();componentsByEntity.clear();materialsByEntity.clear()
   nativeResetScene();names.clear();ids.clear();names.add("Camera");names.add("Directional Light");nextId=1
   val entities=data.optJSONArray("entities")?:JSONArray()
   for(i in 0 until entities.length()){
    val e=entities.getJSONObject(i);val kind=e.optInt("kind",0).coerceIn(0,3)
    nativeAddEntity(kind);val id=nextId++;val n=e.optString("name","Object_"+id)
    names.add(n);ids[n]=id
+   e.optString("assetPath").takeIf{it.isNotBlank()}?.let{modelByEntity[n]=it};e.optString("script").takeIf{it.isNotBlank()}?.let{scriptsByEntity[n]=it};e.optJSONObject("components")?.let{componentsByEntity[n]=it};e.optJSONObject("material")?.let{materialsByEntity[n]=it}
    nativeSetPosition(id,e.optDouble("x",0.0).toFloat(),e.optDouble("y",0.0).toFloat(),e.optDouble("z",0.0).toFloat())
    nativeSetScale(id,e.optDouble("sx",1.0).toFloat(),e.optDouble("sy",1.0).toFloat(),e.optDouble("sz",1.0).toFloat())
    nativeSetRotation(id,e.optDouble("rx",0.0).toFloat(),e.optDouble("ry",0.0).toFloat(),e.optDouble("rz",0.0).toFloat())
@@ -99,7 +105,7 @@ class MainActivity:Activity(){
   if(projectId.isEmpty())return
   val array=JSONArray()
   for((name,id) in ids){val v=nativeGetTransform(id);val kind=when{ name.startsWith("Sphere")->1;name.startsWith("Point Light")->2;name.startsWith("Camera_")->3;else->0}
-   array.put(ProjectStore.entity(name,kind,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7],v[8],v[9]>.5f,v[10],v[11],v[12],v[13]>.5f,v[14],v[15],v[16]))
+   val se=ProjectStore.entity(name,kind,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7],v[8],v[9]>.5f,v[10],v[11],v[12],v[13]>.5f,v[14],v[15],v[16]);se.put("assetPath",modelByEntity[name]?:"").put("script",scriptsByEntity[name]?:"").put("components",componentsByEntity[name]?:JSONObject().put("Transform",true).put("Physics",true)).put("material",materialsByEntity[name]?:JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72));array.put(se)
   }
   ProjectStore.save(this,projectId,projectName,projectTemplate,array)
   val data=ProjectStore.read(this,projectId);val assets=JSONArray();modelPaths.forEach{assets.put(it)};data.put("assets",assets);ProjectStore.writeRaw(this,projectId,data)
@@ -129,7 +135,7 @@ class MainActivity:Activity(){
   val right=rightPanel
   inspectorName=label(selected.ifEmpty{"لا يوجد تحديد"},14,true);right.addView(inspectorName)
   val selectedActions=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER}
-  selectedActions.addView(action("حذف العنصر"){deleteSelected()});selectedActions.addView(action("تكرار"){duplicateSelected()});selectedActions.addView(action("إعادة ضبط"){resetSelected()})
+  selectedActions.addView(action("حذف العنصر"){deleteSelected()});selectedActions.addView(action("تكرار"){duplicateSelected()});selectedActions.addView(action("إعادة ضبط"){resetSelected()});selectedActions.addView(action("</> برمجة"){editScript()});selectedActions.addView(action("المكونات والخامة"){editComponentsMaterial()})
   right.addView(selectedActions);right.addView(section("التحويل"))
   pos=property("الموقع","اضغط للتعديل");pos.setOnClickListener{editVector(false)};right.addView(pos)
   right.addView(property("الدوران","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("الدوران (راديان)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
@@ -145,6 +151,8 @@ class MainActivity:Activity(){
  }};m.show()}
  private fun select(n:String){selected=n;ids[n]?.let{nativeSelectEntity(it)};inspectorName.text=n;rebuildHierarchy();refreshInspector()}
  private fun rebuildHierarchy(){hierarchy.removeAllViews();names.forEach{n->val row=label((if(n==selected)"◆ " else "◇ ")+n,11);row.setPadding(dp(7),dp(8),dp(2),dp(8));row.setBackgroundColor(if(n==selected)Color.rgb(35,62,77)else Color.TRANSPARENT);row.setOnClickListener{select(n)};hierarchy.addView(row)}}
+ private fun editScript(){val n=selected;if(n.isBlank()||ids[n]==null)return;val e=EditText(this).apply{setText(scriptsByEntity[n]?:"// أوامر العنصر\\n// الحركة والتفاعل\\n");minLines=8;gravity=Gravity.TOP;inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE};AlertDialog.Builder(this).setTitle("برمجة: $n").setView(e).setNeutralButton("نسخ",null).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->recordUndo();scriptsByEntity[n]=e.text.toString();saveProject()}.show().also{d->d.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener{(getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("script",e.text));toast("تم نسخ الكود")}}}
+ private fun editComponentsMaterial(){val n=selected;if(n.isBlank()||ids[n]==null)return;val c=componentsByEntity[n]?:JSONObject();val m=materialsByEntity[n]?:JSONObject();val mesh=android.widget.CheckBox(this).apply{text="عرض المجسم";isChecked=c.optBoolean("MeshRenderer",modelByEntity.containsKey(n))};val phys=android.widget.CheckBox(this).apply{text="الفيزياء";isChecked=c.optBoolean("Physics",true)};val script=android.widget.CheckBox(this).apply{text="البرمجة";isChecked=c.optBoolean("Script",scriptsByEntity.containsKey(n))};val color=EditText(this).apply{hint="لون الخامة #RRGGBB";setText(m.optString("baseColor","#50BFD8"))};val metal=EditText(this).apply{hint="المعدنية 0..1";setText(m.optDouble("metallic",0.0).toString());inputType=8194};val rough=EditText(this).apply{hint="الخشونة 0..1";setText(m.optDouble("roughness",.72).toString());inputType=8194};val box=LinearLayout(this).apply{orientation=1;addView(mesh);addView(phys);addView(script);addView(color);addView(metal);addView(rough)};AlertDialog.Builder(this).setTitle("مكونات وخامة: $n").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->recordUndo();componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",mesh.isChecked).put("Physics",phys.isChecked).put("Script",script.isChecked);materialsByEntity[n]=JSONObject().put("baseColor",color.text.toString()).put("metallic",(metal.text.toString().toDoubleOrNull()?:0.0).coerceIn(0.0,1.0)).put("roughness",(rough.text.toString().toDoubleOrNull()?:.72).coerceIn(0.0,1.0));saveProject()}.show()}
  private fun refreshInspector(){val id=ids[selected]?:return;val v=nativeGetTransform(id);pos.text="الموقع X %.2f Y %.2f Z %.2f".format(v[0],v[1],v[2]);scale.text="الحجم X %.2f Y %.2f Z %.2f".format(v[3],v[4],v[5])}
  private fun editVector(isScale:Boolean){val id=ids[selected]?:return;val v=nativeGetTransform(id);val off=if(isScale)3 else 0
   val inputs=Array(3){i->EditText(this).apply{setSingleLine();setText(v[off+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
@@ -186,7 +194,7 @@ class MainActivity:Activity(){
     row.addView(action("تحميل"){ 
      val relative=file.relativeTo(File(ProjectStore.storagePath(this),projectId)).invariantSeparatorsPath
      if(!modelPaths.contains(relative)){recordUndo();modelPaths.add(relative);saveProject()}
-     glView.queueEvent{val msg=nativeImportModel(file.absolutePath);runOnUiThread{toast(msg)}}
+     glView.queueEvent{val msg=nativeImportModel(file.absolutePath,ids[selected]?:0);runOnUiThread{toast(msg)}}
     })
     row.addView(action("حذف"){ 
      AlertDialog.Builder(this).setTitle("حذف الأصل").setMessage("سيُحذف الملف من المشروع نهائياً. هل تريد المتابعة؟")
@@ -206,10 +214,10 @@ class MainActivity:Activity(){
  }
  private fun pickModel(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("model/gltf-binary","model/gltf+json","application/octet-stream"))},modelPicker)}
  @Deprecated("Use Activity Result API")
- override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
+ override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
  private fun deleteSelected(){
   val id=ids[selected]?:return
-  recordUndo();nativeDeleteEntity(id);ids.remove(selected);names.remove(selected)
+  recordUndo();nativeDeleteEntity(id);ids.remove(selected);names.remove(selected);modelByEntity.remove(selected);scriptsByEntity.remove(selected);componentsByEntity.remove(selected);materialsByEntity.remove(selected)
   selected=ids.keys.lastOrNull()?:"";if(selected.isNotEmpty())nativeSelectEntity(ids[selected]!!)
   rebuildHierarchy();refreshInspector();saveProject();glView.requestRender();toast("تم حذف العنصر")
  }
@@ -218,6 +226,7 @@ class MainActivity:Activity(){
   val kind=when{selected.startsWith("Sphere")->1;selected.startsWith("Point Light")->2;selected.startsWith("Camera_")->3;else->0}
   recordUndo();nativeAddEntity(kind);val id=nextId++;val name=selected+"_نسخة_"+id
   names.add(name);ids[name]=id
+  modelByEntity[selected]?.let{modelByEntity[name]=it};scriptsByEntity[selected]?.let{scriptsByEntity[name]=it};componentsByEntity[selected]?.let{componentsByEntity[name]=JSONObject(it.toString())};materialsByEntity[selected]?.let{materialsByEntity[name]=JSONObject(it.toString())}
   nativeSetPosition(id,v[0]+1f,v[1],v[2]);nativeSetScale(id,v[3],v[4],v[5]);nativeSetRotation(id,v[6],v[7],v[8])
   nativeSetStatic(id,v[9]>.5f);nativeSetBodyProperties(id,v[10],v[11],v[12],v[13]>.5f);nativeSetVelocity(id,v[14],v[15],v[16])
   select(name);saveProject();glView.requestRender()
@@ -242,7 +251,7 @@ class MainActivity:Activity(){
  private inner class EngineSurfaceView:GLSurfaceView(this@MainActivity){
   private var x0=0f;private var y0=0f;private var downX=0f;private var downY=0f;private var touchMoved=false;private var oldDist=0f;private var activeAxis=0
   init{setEGLContextClientVersion(3);preserveEGLContextOnPause=true
-   setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime();for(relative in modelPaths.toList()){val path=File(ProjectStore.storagePath(this@MainActivity),"$projectId/$relative").absolutePath;nativeImportModel(path)}}
+   setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime();for((n,relative) in modelByEntity.toMap()){val path=File(ProjectStore.storagePath(this@MainActivity),"$projectId/$relative").absolutePath;nativeImportModel(path,ids[n]?:continue)}}
     override fun onSurfaceChanged(gl:GL10?,w:Int,h:Int){nativeSurfaceChanged(w,h)}
     override fun onDrawFrame(gl:GL10?){val now=System.nanoTime();nativeRender(((now-last)/1e9).toFloat().coerceIn(0f,.1f));last=now}
    });renderMode=RENDERMODE_CONTINUOUSLY
