@@ -18,7 +18,8 @@ private:
  struct GpuModel{std::vector<GpuPrimitive> primitives;OpenGLES3Assets assets;std::vector<ImportedMaterial> materials;};
  void DrawLines(const Mat4&);Mat4 ViewProjection()const;
  const Scene*scene_;Engine*engine_;int width_{1},height_{1};
- unsigned int program_{0},lineProgram_{0},vao_{0},vbo_{0},sphereVao_{0},sphereVbo_{0};\n int sphereVertexCount_{0};
+ unsigned int program_{0},lineProgram_{0},vao_{0},vbo_{0},sphereVao_{0},sphereVbo_{0};
+ int sphereVertexCount_{0};
  int mvp_{-1},model_{-1},lineMvp_{-1},baseColor_{-1},baseTexture_{-1},hasTexture_{-1};
  std::vector<std::unique_ptr<GpuModel>> imported_;
 };

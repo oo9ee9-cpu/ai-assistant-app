@@ -13,7 +13,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSelec
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeOrbit(JNIEnv*,jobject,jfloat x,jfloat y){engine.Orbit(x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativePan(JNIEnv*,jobject,jfloat x,jfloat y){engine.Pan(x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeZoom(JNIEnv*,jobject,jfloat f){engine.Zoom(f);}
-extern "C" JNIEXPORT jint JNICALL Java_com_aster_engine_MainActivity_nativePickGizmoAxis(JNIEnv*,jobject,jfloat x,jfloat y){return renderer?renderer->PickGizmoAxis(x,y):0;}\nextern "C" JNIEXPORT jint JNICALL Java_com_aster_engine_MainActivity_nativePickEntity(JNIEnv*,jobject,jfloat x,jfloat y){return renderer?renderer->PickEntity(x,y):0;}
+extern "C" JNIEXPORT jint JNICALL Java_com_aster_engine_MainActivity_nativePickGizmoAxis(JNIEnv*,jobject,jfloat x,jfloat y){return renderer?renderer->PickGizmoAxis(x,y):0;}
+extern "C" JNIEXPORT jint JNICALL Java_com_aster_engine_MainActivity_nativePickEntity(JNIEnv*,jobject,jfloat x,jfloat y){return renderer?renderer->PickEntity(x,y):0;}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeDragGizmoAxis(JNIEnv*,jobject,jint a,jfloat x,jfloat y){if(renderer)renderer->DragGizmoAxis(a,x,y);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSetPosition(JNIEnv*,jobject,jint id,jfloat x,jfloat y,jfloat z){engine.SetPosition(id,{x,y,z});}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSetScale(JNIEnv*,jobject,jint id,jfloat x,jfloat y,jfloat z){engine.SetScale(id,{x,y,z});}

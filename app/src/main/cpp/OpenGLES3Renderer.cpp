@@ -1,4 +1,5 @@
-#include "aster/OpenGLES3Renderer.hpp"\n#include <GLES3/gl3.h>
+#include "aster/OpenGLES3Renderer.hpp"
+#include <GLES3/gl3.h>
 #include <GLES3/gl3.h>
 #include <algorithm>
 #include <array>
