@@ -6,6 +6,8 @@ Mat4 Mat4::Perspective(float f,float a,float n,float z){Mat4 r{};float q=1/std::
 Mat4 Mat4::LookAt(Vec3 e,Vec3 c,Vec3 up){Vec3 f=(c-e).Normalized(),s=Vec3::Cross(f,up).Normalized(),u=Vec3::Cross(s,f);Mat4 r=Identity();r.m[0]=s.x;r.m[4]=s.y;r.m[8]=s.z;r.m[1]=u.x;r.m[5]=u.y;r.m[9]=u.z;r.m[2]=-f.x;r.m[6]=-f.y;r.m[10]=-f.z;r.m[12]=-Vec3::Dot(s,e);r.m[13]=-Vec3::Dot(u,e);r.m[14]=Vec3::Dot(f,e);return r;}
 Mat4 Mat4::Translation(Vec3 p){Mat4 r=Identity();r.m[12]=p.x;r.m[13]=p.y;r.m[14]=p.z;return r;}
 Mat4 Mat4::Scale(Vec3 s){Mat4 r=Identity();r.m[0]=s.x;r.m[5]=s.y;r.m[10]=s.z;return r;}
+Mat4 Mat4::RotationX(float a){Mat4 r=Identity();float c=std::cos(a),s=std::sin(a);r.m[5]=c;r.m[6]=s;r.m[9]=-s;r.m[10]=c;return r;}
+Mat4 Mat4::RotationZ(float a){Mat4 r=Identity();float c=std::cos(a),s=std::sin(a);r.m[0]=c;r.m[1]=s;r.m[4]=-s;r.m[5]=c;return r;}
 Mat4 Mat4::RotationY(float a){Mat4 r=Identity();float c=std::cos(a),s=std::sin(a);r.m[0]=c;r.m[2]=-s;r.m[8]=s;r.m[10]=c;return r;}
 Mat4 operator*(const Mat4&a,const Mat4&b){Mat4 r{};for(int c=0;c<4;c++)for(int y=0;y<4;y++)for(int k=0;k<4;k++)r.m[c*4+y]+=a.m[k*4+y]*b.m[c*4+k];return r;}
 EntityId Scene::Add(EntityKind k,Vec3 p){
@@ -19,9 +21,12 @@ std::uint32_t AssetRegistry::Register(std::string n,std::string t){auto i=record
 const AssetRecord* AssetRegistry::Find(const std::string&n)const{auto i=records_.find(n);return i==records_.end()?nullptr:&i->second;}
 bool PhysicsWorld::IsBody(const Entity&e){return e.kind==EntityKind::Cube||e.kind==EntityKind::Sphere;}
 Vec3 PhysicsWorld::HalfExtents(const Entity&e){
- return {std::max(.025f,std::fabs(e.transform.scale.x)),
-         std::max(.025f,std::fabs(e.transform.scale.y)),
-         std::max(.025f,std::fabs(e.transform.scale.z))};
+ const float x=std::fabs(e.transform.scale.x),y=std::fabs(e.transform.scale.y),z=std::fabs(e.transform.scale.z);
+ const float cx=std::cos(e.transform.rotation.x),sx=std::sin(e.transform.rotation.x),cy=std::cos(e.transform.rotation.y),sy=std::sin(e.transform.rotation.y),cz=std::cos(e.transform.rotation.z),sz=std::sin(e.transform.rotation.z);
+ const float a=cz*cy,b=cz*sy*sx-sz*cx,d=cz*sy*cx+sz*sx;
+ const float f=sz*cy,g=sz*sy*sx+cz*cx,h=sz*sy*cx-cz*sx;
+ const float j=-sy,k=cy*sx,l=cy*cx;
+ return {std::max(.025f,std::fabs(a)*x+std::fabs(b)*y+std::fabs(d)*z),std::max(.025f,std::fabs(f)*x+std::fabs(g)*y+std::fabs(h)*z),std::max(.025f,std::fabs(j)*x+std::fabs(k)*y+std::fabs(l)*z)};
 }
 void PhysicsWorld::ResolveGround(Entity&e){
  if(!IsBody(e))return;
@@ -123,6 +128,8 @@ void Engine::DragSelectedAxis(int axis,float amount){auto*e=scene_.Find(selected
 void Engine::SetStatic(EntityId id,bool value){if(auto*e=scene_.Find(id)){e->body.isStatic=value;if(value)e->body.velocity={};}}
 void Engine::SetVelocity(EntityId id,Vec3 v){if(auto*e=scene_.Find(id);e&&!e->body.isStatic)e->body.velocity=v;}
 Vec3 Engine::Velocity(EntityId id)const{const auto*e=scene_.Find(id);return e?e->body.velocity:Vec3{};}
+void Engine::SetRotation(EntityId id,Vec3 v){if(auto*e=scene_.Find(id))e->transform.rotation=v;}
+void Engine::SetBodyProperties(EntityId id,float m,float f,float r,bool g){if(auto*e=scene_.Find(id)){e->body.mass=std::clamp(m,.001f,1000000.0f);e->body.friction=std::clamp(f,0.0f,1.0f);e->body.restitution=std::clamp(r,0.0f,1.0f);e->body.useGravity=g;}}
 void Engine::SetPosition(EntityId id,Vec3 p){if(auto*e=scene_.Find(id))e->transform.position=p;}
 void Engine::SetScale(EntityId id,Vec3 s){if(auto*e=scene_.Find(id))e->transform.scale={std::max(.05f,s.x),std::max(.05f,s.y),std::max(.05f,s.z)};}
 }
