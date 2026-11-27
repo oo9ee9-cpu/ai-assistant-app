@@ -38,4 +38,25 @@ int main(){
  input.DragSelectedAxis(2,-.5f);assert(std::fabs(p->transform.position.y-1.5f)<1e-5f);
  input.DragSelectedAxis(3,2.0f);assert(std::fabs(p->transform.position.z-5.0f)<1e-5f);
  input.Start();input.Tick(1.0/30.0);assert(input.FrameCount()==1);input.Stop();
+
+ // Sphere entities participate in the same dynamic-body simulation.
+ Engine sphereScene;
+ const auto sphereFloor=sphereScene.GetScene().Add(EntityKind::Cube,{0,-1,0});
+ sphereScene.SetScale(sphereFloor,{6,1,6});sphereScene.SetStatic(sphereFloor,true);
+ const auto sphere=sphereScene.GetScene().Add(EntityKind::Sphere,{0,3,0});
+ sphereScene.Start();Step(sphereScene,90);
+ const Entity* sphereBody=sphereScene.GetScene().Find(sphere);
+ assert(sphereBody&&sphereBody->kind==EntityKind::Sphere);
+ assert(sphereBody->transform.position.y>=0.95f);
+ sphereScene.Stop();
+
+ // Physics parameters are retained on the selected entity.
+ Engine properties;
+ const auto body=properties.GetScene().Add(EntityKind::Sphere,{1,2,3});
+ properties.SetStatic(body,true);
+ auto* bodyData=properties.GetScene().Find(body);
+ bodyData->body.mass=3.5f;bodyData->body.friction=.42f;bodyData->body.restitution=.3f;bodyData->body.useGravity=false;
+ assert(bodyData->body.isStatic&&std::fabs(bodyData->body.mass-3.5f)<1e-5f);
+ assert(std::fabs(bodyData->body.friction-.42f)<1e-5f&&std::fabs(bodyData->body.restitution-.3f)<1e-5f);
+ assert(!bodyData->body.useGravity);
 }

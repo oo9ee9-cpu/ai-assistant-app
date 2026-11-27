@@ -30,7 +30,7 @@ class MainActivity:Activity(){
  private external fun nativeOrbit(dx:Float,dy:Float)
  private external fun nativePan(dx:Float,dy:Float)
  private external fun nativeZoom(factor:Float)
- private external fun nativePickGizmoAxis(x:Float,y:Float):Int
+ private external fun nativePickGizmoAxis(x:Float,y:Float):Int\n private external fun nativePickEntity(x:Float,y:Float):Int
  private external fun nativeDragGizmoAxis(axis:Int,dx:Float,dy:Float)
  private external fun nativeSetPosition(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeSetScale(id:Int,x:Float,y:Float,z:Float)
@@ -108,7 +108,7 @@ class MainActivity:Activity(){
   top.addView(action("تراجع"){undoLast()})
   top.addView(action("القوائم"){panelsVisible=!panelsVisible;leftPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;rightPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;glView.requestLayout()})
   top.addView(action("إضافة +"){showAddMenu(it)})
-  top.addView(action("تحريك"){gizmo=!gizmo;toast(if(gizmo)"Gizmo drag enabled" else "Camera orbit enabled")})
+  top.addView(action("تحريك"){gizmo=!gizmo;toast(if(gizmo)"تم تفعيل تحريك المحاور" else "تم تفعيل تدوير الكاميرا")})
   top.addView(action(if(playing)"إيقاف" else "تشغيل"){togglePlay()})
   top.addView(action("الأصول"){showAssetBrowser()})
   top.addView(action("استيراد نموذج"){pickModel()})
@@ -122,11 +122,11 @@ class MainActivity:Activity(){
   glView=EngineSurfaceView();center.addView(glView,LinearLayout.LayoutParams(-1,0,1f));work.addView(center,LinearLayout.LayoutParams(0,-1,.56f))
   rightPanel=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("الخصائص"))}
   val right=rightPanel
-  inspectorName=label(selected.ifEmpty{"No selection"},14,true);right.addView(inspectorName);right.addView(section("التحويل"))
+  inspectorName=label(selected.ifEmpty{"لا يوجد تحديد"},14,true);right.addView(inspectorName);right.addView(section("التحويل"))
   pos=property("الموقع","اضغط للتعديل");pos.setOnClickListener{editVector(false)};right.addView(pos)
   right.addView(property("الدوران","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("الدوران (راديان)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
   scale=property("الحجم","اضغط للتعديل");scale.setOnClickListener{editVector(true)};right.addView(scale)
-  right.addView(section("عارض المجسم"));right.addView(property("المجسم","Cube_المجسم"));right.addView(property("الخامة","حسب النموذج المستورد"))
+  right.addView(section("عارض المجسم"));right.addView(property("نوع المجسم","حسب نوع الكائن"));right.addView(property("الخامة","حسب النموذج المستورد"))
   right.addView(section("الفيزياء"));right.addView(property("جسم فيزيائي","اضغط للضبط").apply{setOnClickListener{editPhysics()}});right.addView(property("السرعة","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("السرعة",14){a->ids[selected]?.let{id->nativeSetVelocity(id,a[0],a[1],a[2]);saveProject()}}}})
   work.addView(right,LinearLayout.LayoutParams(0,-1,.22f))
   root.addView(work,LinearLayout.LayoutParams(-1,0,1f));root.addView(label("نواة C++20 • حفظ محلي للمشروع • أندرويد",9),LinearLayout.LayoutParams(-1,dp(24)))
@@ -137,7 +137,7 @@ class MainActivity:Activity(){
  }};m.show()}
  private fun select(n:String){selected=n;ids[n]?.let{nativeSelectEntity(it)};inspectorName.text=n;rebuildHierarchy();refreshInspector()}
  private fun rebuildHierarchy(){hierarchy.removeAllViews();names.forEach{n->val row=label((if(n==selected)"◆ " else "◇ ")+n,11);row.setPadding(dp(7),dp(8),dp(2),dp(8));row.setBackgroundColor(if(n==selected)Color.rgb(35,62,77)else Color.TRANSPARENT);row.setOnClickListener{select(n)};hierarchy.addView(row)}}
- private fun refreshInspector(){val id=ids[selected]?:return;val v=nativeGetTransform(id);pos.text="الموقع X %.2f Y %.2f Z %.2f".format(v[0],v[1],v[2]);scale.text="Scale X %.2f Y %.2f Z %.2f".format(v[3],v[4],v[5])}
+ private fun refreshInspector(){val id=ids[selected]?:return;val v=nativeGetTransform(id);pos.text="الموقع X %.2f Y %.2f Z %.2f".format(v[0],v[1],v[2]);scale.text="الحجم X %.2f Y %.2f Z %.2f".format(v[3],v[4],v[5])}
  private fun editVector(isScale:Boolean){val id=ids[selected]?:return;val v=nativeGetTransform(id);val off=if(isScale)3 else 0
   val inputs=Array(3){i->EditText(this).apply{setSingleLine();setText(v[off+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
   val box=LinearLayout(this).apply{orientation=0;setPadding(dp(8),0,dp(8),0);inputs.forEach{addView(it,LinearLayout.LayoutParams(0,dp(52),1f))}}
@@ -151,7 +151,7 @@ class MainActivity:Activity(){
  }
  private fun editPhysics(){
   val id=ids[selected]?:return;val v=nativeGetTransform(id)
-  val fixed=android.widget.CheckBox(this).apply{text="جسم ثابت";isChecked=v[9]>.5f}
+  val fixed=android.widget.CheckBox(this).apply{text="ثابت (Static) — إيقاف الحركة الفيزيائية";isChecked=v[9]>.5f}
   val gravity=android.widget.CheckBox(this).apply{text="استخدام الجاذبية";isChecked=v[13]>.5f}
   val mass=EditText(this).apply{hint="الكتلة";setText(v[10].toString());inputType=8194}
   val friction=EditText(this).apply{hint="الاحتكاك (0..1)";setText(v[11].toString());inputType=8194}
@@ -165,7 +165,37 @@ class MainActivity:Activity(){
  }
  private fun recordUndo(){if(undoing||projectId.isEmpty())return;saveProject();undoStack.addLast(ProjectStore.read(this,projectId).toString());while(undoStack.size>30)undoStack.removeFirst()}
  private fun undoLast(){if(undoStack.isEmpty()){toast("لا توجد تعديلات للتراجع عنها");return};val raw=undoStack.removeLast();runCatching{ProjectStore.writeRaw(this,projectId,org.json.JSONObject(raw));undoing=true;loadProject();rebuildHierarchy();refreshInspector();glView.requestRender();undoing=false;toast("تم التراجع عن آخر تعديل")}.onFailure{undoing=false;toast("تعذر التراجع عن التعديل")}}
- private fun showAssetBrowser(){val files=ProjectStore.assetFiles(this,projectId);if(files.isEmpty()){AlertDialog.Builder(this).setTitle("متصفح الأصول").setMessage("لا توجد نماذج مستوردة. أضف ملف GLB أو glTF أولاً.").setPositiveButton("استيراد نموذج"){_,_->pickModel()}.setNegativeButton("إغلاق",null).show();return};AlertDialog.Builder(this).setTitle("أصول المشروع").setItems(files.map{it.name}.toTypedArray()){_,which->val file=files[which];val relative=file.relativeTo(File(ProjectStore.storagePath(this),projectId)).invariantSeparatorsPath;if(!modelPaths.contains(relative)){recordUndo();modelPaths.add(relative);saveProject()};glView.queueEvent{val msg=nativeImportModel(file.absolutePath);runOnUiThread{toast(msg)}}}.setNegativeButton("إغلاق",null).show()}
+ private fun showAssetBrowser(){
+  val files=ProjectStore.assetFiles(this,projectId)
+  if(files.isEmpty()){AlertDialog.Builder(this).setTitle("متصفح الأصول").setMessage("لا توجد نماذج مستوردة. أضف ملف GLB أو glTF أولاً.").setPositiveButton("استيراد نموذج"){_,_->pickModel()}.setNegativeButton("إغلاق",null).show();return}
+  val content=LinearLayout(this).apply{orientation=1;setPadding(dp(12),dp(4),dp(12),dp(4))}
+  val scroll=android.widget.ScrollView(this).apply{addView(content)}
+  fun refresh(){
+   content.removeAllViews()
+   ProjectStore.assetFiles(this,projectId).forEach{file->
+    val row=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER_VERTICAL}
+    row.addView(label(file.name,11),LinearLayout.LayoutParams(0,dp(48),1f))
+    row.addView(action("تحميل"){ 
+     val relative=file.relativeTo(File(ProjectStore.storagePath(this),projectId)).invariantSeparatorsPath
+     if(!modelPaths.contains(relative)){recordUndo();modelPaths.add(relative);saveProject()}
+     glView.queueEvent{val msg=nativeImportModel(file.absolutePath);runOnUiThread{toast(msg)}}
+    })
+    row.addView(action("حذف"){ 
+     AlertDialog.Builder(this).setTitle("حذف الأصل").setMessage("سيُحذف الملف من المشروع نهائياً. هل تريد المتابعة؟")
+      .setNegativeButton("إلغاء",null).setPositiveButton("حذف"){_,_->
+       recordUndo()
+       val relative=file.relativeTo(File(ProjectStore.storagePath(this),projectId)).invariantSeparatorsPath
+       runCatching{ProjectStore.deleteAsset(this,projectId,relative)}.onSuccess{
+        modelPaths.remove(relative);saveProject();refresh();toast("تم حذف الأصل")
+       }.onFailure{toast(it.message?:"تعذر حذف الأصل")}
+      }.show()
+    })
+    content.addView(row)
+   }
+  }
+  refresh()
+  AlertDialog.Builder(this).setTitle("أصول المشروع").setView(scroll).setPositiveButton("إغلاق",null).setNeutralButton("استيراد"){_,_->pickModel()}.show()
+ }
  private fun pickModel(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("model/gltf-binary","model/gltf+json","application/octet-stream"))},modelPicker)}
  @Deprecated("Use Activity Result API")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
@@ -180,17 +210,17 @@ class MainActivity:Activity(){
  override fun onResume(){super.onResume();if(::glView.isInitialized)glView.onResume()}
  override fun onBackPressed(){saveProject();startActivity(Intent(this,ProjectHubActivity::class.java));finish()}
  private inner class EngineSurfaceView:GLSurfaceView(this@MainActivity){
-  private var x0=0f;private var y0=0f;private var oldDist=0f;private var activeAxis=0
+  private var x0=0f;private var y0=0f;private var downX=0f;private var downY=0f;private var touchMoved=false;private var oldDist=0f;private var activeAxis=0
   init{setEGLContextClientVersion(3);preserveEGLContextOnPause=true
    setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime();for(relative in modelPaths.toList()){val path=File(ProjectStore.storagePath(this@MainActivity),"$projectId/$relative").absolutePath;nativeImportModel(path)}}
     override fun onSurfaceChanged(gl:GL10?,w:Int,h:Int){nativeSurfaceChanged(w,h)}
     override fun onDrawFrame(gl:GL10?){val now=System.nanoTime();nativeRender(((now-last)/1e9).toFloat().coerceIn(0f,.1f));last=now}
    });renderMode=RENDERMODE_CONTINUOUSLY
    setOnTouchListener{_,e->when(e.actionMasked){
-    MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;activeAxis=if(gizmo)nativePickGizmoAxis(e.x,e.y)else 0;true}
+    MotionEvent.ACTION_DOWN->{x0=e.x;y0=e.y;downX=e.x;downY=e.y;touchMoved=false;activeAxis=if(gizmo)nativePickGizmoAxis(e.x,e.y)else 0;true}
     MotionEvent.ACTION_POINTER_DOWN->{oldDist=dist(e);x0=midX(e);y0=midY(e);true}
-    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val dx=e.x-x0;val dy=e.y-y0;if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy);x0=e.x;y0=e.y};requestRender();true}
-    MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->{oldDist=0f;activeAxis=0;true};else->true
+    MotionEvent.ACTION_MOVE->{if(e.pointerCount>=2){touchMoved=true;val d=dist(e);if(oldDist>0&&d>0)nativeZoom(oldDist/d);nativePan(midX(e)-x0,midY(e)-y0);oldDist=d;x0=midX(e);y0=midY(e)}else{val totalX=e.x-downX;val totalY=e.y-downY;if(kotlin.math.hypot(totalX,totalY)>resources.displayMetrics.density*8)touchMoved=true;if(touchMoved){val dx=e.x-x0;val dy=e.y-y0;if(activeAxis!=0)nativeDragGizmoAxis(activeAxis,dx,dy)else nativeOrbit(dx,dy);x0=e.x;y0=e.y}};requestRender();true}
+    MotionEvent.ACTION_UP->{if(!touchMoved&&e.pointerCount==1){val hit=nativePickEntity(e.x,e.y);val name=ids.entries.firstOrNull{it.value==hit}?.key;if(name!=null)runOnUiThread{select(name)}};oldDist=0f;activeAxis=0;true}\n    MotionEvent.ACTION_CANCEL->{oldDist=0f;activeAxis=0;true};else->true
    }}
   }
   private fun dist(e:MotionEvent):Float{if(e.pointerCount<2)return 0f;val x=e.getX(0)-e.getX(1);val y=e.getY(0)-e.getY(1);return kotlin.math.sqrt(x*x+y*y)}

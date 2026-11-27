@@ -63,6 +63,13 @@ object ProjectStore {
  fun read(c:Context,id:String)=JSONObject(file(c,id).readText())
  fun assetFolder(c:Context,id:String)=File(folder(c,id),"Assets/Models").apply{mkdirs()}
  fun assetFiles(c:Context,id:String):List<File> = assetFolder(c,id).listFiles()?.filter{it.isFile && it.extension.lowercase(Locale.ROOT) in setOf("glb","gltf")}?.sortedBy{it.name.lowercase(Locale.ROOT)} ?: emptyList()
+ fun deleteAsset(c:Context,id:String,relativePath:String){
+  val base=assetFolder(c,id).canonicalFile
+  val target=File(folder(c,id),relativePath).canonicalFile
+  require(target.parentFile==base){"مسار الأصل خارج مجلد النماذج"}
+  require(target.isFile && target.extension.lowercase(Locale.ROOT) in setOf("glb","gltf")){"ملف الأصل غير صالح"}
+  if(!target.delete())throw java.io.IOException("تعذر حذف ملف الأصل")
+ }
  fun importModel(c:Context,id:String,uri:Uri):String{
   val name=uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.ifBlank{null}?: "model.glb"
   val ext=name.substringAfterLast('.', "").lowercase(Locale.ROOT);require(ext=="glb"||ext=="gltf"){"اختر ملف glb أو gltf"}
