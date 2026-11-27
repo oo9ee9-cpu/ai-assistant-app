@@ -30,6 +30,13 @@ int main(){
  collision.Stop();
  assert(std::fabs(collision.GetScene().Find(mover)->transform.position.x+2.0f)<1e-5f);
 
+ // Full XYZ rotation matrices remain finite and preserve orthogonal unit axes.
+ const Vec3 rx=Vec3{0,1,0};
+ const Mat4 rotX=Mat4::RotationX(1.57079632679f),rotY=Mat4::RotationY(1.57079632679f),rotZ=Mat4::RotationZ(1.57079632679f);
+ assert(std::fabs(rotX.m[5])<1e-5f&&std::fabs(rotX.m[6]-1.0f)<1e-5f);
+ assert(std::fabs(rotY.m[0])<1e-5f&&std::fabs(rotY.m[8]-1.0f)<1e-5f);
+ assert(std::fabs(rotZ.m[0])<1e-5f&&std::fabs(rotZ.m[1]-1.0f)<1e-5f);
+ (void)rx;
  // Existing runtime and axis drag behavior remain intact.
  Engine input;const auto id=input.GetScene().Add(EntityKind::Cube,{0,1,0});
  input.Select(id);input.SetPosition(id,{1,2,3});input.SetScale(id,{2,2,2});

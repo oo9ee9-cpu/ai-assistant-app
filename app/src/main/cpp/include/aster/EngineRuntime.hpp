@@ -19,7 +19,7 @@ struct Vec3{
 struct Mat4{
  float m[16]{};
  static Mat4 Identity();static Mat4 Perspective(float,float,float,float);static Mat4 LookAt(Vec3,Vec3,Vec3);
- static Mat4 Translation(Vec3);static Mat4 Scale(Vec3);static Mat4 RotationY(float);
+ static Mat4 Translation(Vec3);static Mat4 Scale(Vec3);static Mat4 RotationX(float);static Mat4 RotationY(float);static Mat4 RotationZ(float);
 };
 Mat4 operator*(const Mat4&,const Mat4&);
 struct Transform{Vec3 position{};Vec3 rotation{};Vec3 scale{1,1,1};};

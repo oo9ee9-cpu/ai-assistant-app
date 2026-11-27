@@ -26,8 +26,19 @@ void main(){gl_Position=uMvp*vec4(aPosition,1.0);vNormal=mat3(uModel)*aNormal;vU
 const char* meshFragment=R"(#version 300 es
 precision highp float;in vec3 vNormal;in vec2 vUv;out vec4 outColor;
 uniform vec4 uBaseColor;uniform sampler2D uBaseTexture;uniform int uHasTexture;
-void main(){vec3 n=normalize(vNormal);vec3 lightDir=normalize(vec3(-0.4,0.8,0.5));float diffuse=max(dot(n,lightDir),0.0);// Stronger ambient fill keeps unlit faces and imported materials readable.
-float light=0.48+0.52*diffuse;vec4 albedo=uBaseColor;if(uHasTexture==1)albedo*=texture(uBaseTexture,vUv);outColor=vec4(albedo.rgb*light,albedo.a);})";
+uniform float uMetallic;uniform float uRoughness;uniform int uSelected;
+void main(){
+ vec3 n=normalize(vNormal);vec3 l=normalize(vec3(-0.4,0.8,0.5));
+ vec3 v=normalize(vec3(0.0,0.0,1.0));vec3 h=normalize(l+v);
+ vec4 albedo=uBaseColor;if(uHasTexture==1)albedo*=texture(uBaseTexture,vUv);
+ float ndl=max(dot(n,l),0.0);float rough=clamp(uRoughness,0.08,1.0);float metal=clamp(uMetallic,0.0,1.0);
+ float spec=pow(max(dot(n,h),0.0),mix(128.0,4.0,rough))*(1.0-rough*0.65);
+ vec3 f0=mix(vec3(0.04),albedo.rgb,metal);
+ vec3 color=albedo.rgb*(0.48+0.52*ndl*(1.0-metal))+f0*spec*ndl;
+ color=color/(color+vec3(1.0));color=pow(max(color,vec3(0.0)),vec3(1.0/2.2));
+ if(uSelected==1)color=mix(color,vec3(0.18,0.72,1.0),0.16);
+ outColor=vec4(color,albedo.a);
+})";
 const char* lineVertex=R"(#version 300 es
 layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aColor;
 uniform mat4 uMvp;out vec3 vColor;void main(){gl_Position=uMvp*vec4(aPosition,1.0);vColor=aColor;})";
@@ -76,7 +87,7 @@ Mat4 OpenGLES3Renderer::ViewProjection()const{
 void OpenGLES3Renderer::Initialize(){
  program_=LinkProgram(meshVertex,meshFragment);lineProgram_=LinkProgram(lineVertex,lineFragment);
  if(!program_||!lineProgram_)return;
- mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");baseColor_=glGetUniformLocation(program_,"uBaseColor");baseTexture_=glGetUniformLocation(program_,"uBaseTexture");hasTexture_=glGetUniformLocation(program_,"uHasTexture");glUniform1i(baseTexture_,0);glUniform4f(baseColor_,.16f,.48f,.68f,1);glUniform1i(hasTexture_,0);
+ mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");baseColor_=glGetUniformLocation(program_,"uBaseColor");baseTexture_=glGetUniformLocation(program_,"uBaseTexture");hasTexture_=glGetUniformLocation(program_,"uHasTexture");metallic_=glGetUniformLocation(program_,"uMetallic");roughness_=glGetUniformLocation(program_,"uRoughness");selected_=glGetUniformLocation(program_,"uSelected");glUniform1i(baseTexture_,0);glUniform4f(baseColor_,.16f,.48f,.68f,1);glUniform1i(hasTexture_,0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);glUniform1i(selected_,0);
  lineMvp_=glGetUniformLocation(lineProgram_,"uMvp");
  const std::vector<float> vertices=BuildCubeVertices();
  glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);
@@ -156,16 +167,16 @@ void OpenGLES3Renderer::RenderFrame(){
  const Mat4 vp=ViewProjection();glUseProgram(program_);glBindVertexArray(vao_);
  for(const Entity&e:scene_->Entities()){
   if(!e.visible||e.kind==EntityKind::Light||e.kind==EntityKind::Camera)continue;
-  const Mat4 model=Mat4::Translation(e.transform.position)*Mat4::RotationY(e.transform.rotation.y)*Mat4::Scale(e.transform.scale);
+  const Mat4 model=Mat4::Translation(e.transform.position)*Mat4::RotationZ(e.transform.rotation.z)*Mat4::RotationY(e.transform.rotation.y)*Mat4::RotationX(e.transform.rotation.x)*Mat4::Scale(e.transform.scale);
   const Mat4 mvp=vp*model;glUniformMatrix4fv(mvp_,1,GL_FALSE,mvp.m);glUniformMatrix4fv(model_,1,GL_FALSE,model.m);
-  glDrawArrays(GL_TRIANGLES,0,36);
+  glUniform1i(selected_,e.id==engine_->Selected()?1:0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);glDrawArrays(GL_TRIANGLES,0,36);
  }
  glBindVertexArray(0);
  for(const auto& model:imported_)for(const auto& primitive:model->primitives){
   glUseProgram(program_);glBindVertexArray(primitive.vao);Mat4 identity=Mat4::Identity();
   glUniformMatrix4fv(mvp_,1,GL_FALSE,vp.m);glUniformMatrix4fv(model_,1,GL_FALSE,identity.m);
   ImportedMaterial mat;if(primitive.materialIndex>=0&&static_cast<size_t>(primitive.materialIndex)<model->materials.size())mat=model->materials[primitive.materialIndex];
-  glUniform4fv(baseColor_,1,mat.baseColor);glUniform1i(hasTexture_,mat.baseColorTexture>=0?1:0);model->assets.BindBaseColor(mat,0);
+  glUniform4fv(baseColor_,1,mat.baseColor);glUniform1i(hasTexture_,mat.baseColorTexture>=0?1:0);glUniform1f(metallic_,mat.metallic);glUniform1f(roughness_,mat.roughness);glUniform1i(selected_,0);model->assets.BindBaseColor(mat,0);
   glDrawElements(GL_TRIANGLES,primitive.indexCount,GL_UNSIGNED_INT,nullptr);
  }
  glBindVertexArray(0);DrawLines(vp);
