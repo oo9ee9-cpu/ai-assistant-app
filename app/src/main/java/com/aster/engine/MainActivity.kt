@@ -32,6 +32,10 @@ class MainActivity:Activity(){
  private external fun nativeDragGizmoAxis(axis:Int,dx:Float,dy:Float)
  private external fun nativeSetPosition(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeSetScale(id:Int,x:Float,y:Float,z:Float)
+ private external fun nativeSetRotation(id:Int,x:Float,y:Float,z:Float)
+ private external fun nativeSetStatic(id:Int,value:Boolean)
+ private external fun nativeSetBodyProperties(id:Int,mass:Float,friction:Float,restitution:Float,gravity:Boolean)
+ private external fun nativeSetVelocity(id:Int,x:Float,y:Float,z:Float)
  private external fun nativeGetTransform(id:Int):FloatArray
  private external fun nativeSurfaceCreated()
  private external fun nativeSurfaceChanged(width:Int,height:Int)
@@ -69,6 +73,10 @@ class MainActivity:Activity(){
    names.add(n);ids[n]=id
    nativeSetPosition(id,e.optDouble("x",0.0).toFloat(),e.optDouble("y",0.0).toFloat(),e.optDouble("z",0.0).toFloat())
    nativeSetScale(id,e.optDouble("sx",1.0).toFloat(),e.optDouble("sy",1.0).toFloat(),e.optDouble("sz",1.0).toFloat())
+   nativeSetRotation(id,e.optDouble("rx",0.0).toFloat(),e.optDouble("ry",0.0).toFloat(),e.optDouble("rz",0.0).toFloat())
+   nativeSetStatic(id,e.optBoolean("isStatic",false))
+   nativeSetBodyProperties(id,e.optDouble("mass",1.0).toFloat(),e.optDouble("friction",.65).toFloat(),e.optDouble("restitution",.05).toFloat(),e.optBoolean("useGravity",true))
+   nativeSetVelocity(id,e.optDouble("vx",0.0).toFloat(),e.optDouble("vy",0.0).toFloat(),e.optDouble("vz",0.0).toFloat())
   }
   selected=ids.keys.lastOrNull()?: "";if(selected.isNotEmpty())nativeSelectEntity(ids[selected]!!)
  }
@@ -76,7 +84,7 @@ class MainActivity:Activity(){
   if(projectId.isEmpty())return
   val array=JSONArray()
   for((name,id) in ids){val v=nativeGetTransform(id);val kind=when{ name.startsWith("Sphere")->1;name.startsWith("Point Light")->2;name.startsWith("Camera_")->3;else->0}
-   array.put(ProjectStore.entity(name,kind,v[0],v[1],v[2],v[3],v[4],v[5]))
+   array.put(ProjectStore.entity(name,kind,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7],v[8],v[9]>.5f,v[10],v[11],v[12],v[13]>.5f,v[14],v[15],v[16]))
   }
   ProjectStore.save(this,projectId,projectName,projectTemplate,array)
  }
@@ -100,10 +108,10 @@ class MainActivity:Activity(){
   val right=LinearLayout(this).apply{orientation=1;setBackgroundColor(panel);addView(section("INSPECTOR"))}
   inspectorName=label(selected.ifEmpty{"No selection"},14,true);right.addView(inspectorName);right.addView(section("TRANSFORM"))
   pos=property("Position","Tap to edit");pos.setOnClickListener{editVector(false)};right.addView(pos)
-  right.addView(property("Rotation","Automatic in Play mode"))
+  right.addView(property("Rotation","Tap to edit").apply{setOnClickListener{editTripleDialog("Rotation (radians)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
   scale=property("Scale","Tap to edit");scale.setOnClickListener{editVector(true)};right.addView(scale)
   right.addView(section("MESH RENDERER"));right.addView(property("Mesh","Cube_Mesh"));right.addView(property("Material","Default_Lit"))
-  right.addView(section("PHYSICS"));right.addView(property("Mode","Gravity / rotation prototype"))
+  right.addView(section("PHYSICS"));right.addView(property("Rigid Body","Tap to configure").apply{setOnClickListener{editPhysics()}});right.addView(property("Velocity","Tap to edit").apply{setOnClickListener{editTripleDialog("Velocity",14){a->ids[selected]?.let{id->nativeSetVelocity(id,a[0],a[1],a[2]);saveProject()}}}})
   work.addView(right,LinearLayout.LayoutParams(0,-1,.22f))
   root.addView(work,LinearLayout.LayoutParams(-1,0,1f));root.addView(label("C++20 CORE • PROJECT LOCAL SAVE • ANDROID",9),LinearLayout.LayoutParams(-1,dp(24)))
   setContentView(root);rebuildHierarchy();refreshInspector()
@@ -118,6 +126,26 @@ class MainActivity:Activity(){
   val inputs=Array(3){i->EditText(this).apply{setSingleLine();setText(v[off+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
   val box=LinearLayout(this).apply{orientation=0;setPadding(dp(8),0,dp(8),0);inputs.forEach{addView(it,LinearLayout.LayoutParams(0,dp(52),1f))}}
   AlertDialog.Builder(this).setTitle(if(isScale)"Edit Scale" else "Edit Position").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Apply"){_,_->val a=FloatArray(3){i->inputs[i].text.toString().toFloatOrNull()?:v[off+i]};if(isScale)nativeSetScale(id,a[0],a[1],a[2])else nativeSetPosition(id,a[0],a[1],a[2]);refreshInspector();glView.requestRender();saveProject()}.show()
+ }
+ private fun editTripleDialog(title:String,offset:Int,apply:(FloatArray)->Unit){
+  val id=ids[selected]?:return;val v=nativeGetTransform(id)
+  val fields=Array(3){i->EditText(this).apply{setSingleLine();setText(v[offset+i].toString());hint=listOf("X","Y","Z")[i];inputType=8194}}
+  val box=LinearLayout(this).apply{orientation=0;setPadding(dp(8),0,dp(8),0);fields.forEach{addView(it,LinearLayout.LayoutParams(0,dp(52),1f))}}
+  AlertDialog.Builder(this).setTitle(title).setView(box).setNegativeButton("Cancel",null).setPositiveButton("Apply"){_,_->apply(FloatArray(3){i->fields[i].text.toString().toFloatOrNull()?:v[offset+i]})}.show()
+ }
+ private fun editPhysics(){
+  val id=ids[selected]?:return;val v=nativeGetTransform(id)
+  val fixed=android.widget.CheckBox(this).apply{text="Static body";isChecked=v[9]>.5f}
+  val gravity=android.widget.CheckBox(this).apply{text="Use gravity";isChecked=v[13]>.5f}
+  val mass=EditText(this).apply{hint="Mass";setText(v[10].toString());inputType=8194}
+  val friction=EditText(this).apply{hint="Friction (0..1)";setText(v[11].toString());inputType=8194}
+  val bounce=EditText(this).apply{hint="Restitution (0..1)";setText(v[12].toString());inputType=8194}
+  val box=LinearLayout(this).apply{orientation=1;setPadding(dp(12),0,dp(12),0);addView(fixed);addView(gravity);addView(mass);addView(friction);addView(bounce)}
+  AlertDialog.Builder(this).setTitle("Rigid Body Properties").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Apply"){_,_->
+   nativeSetStatic(id,fixed.isChecked)
+   nativeSetBodyProperties(id,mass.text.toString().toFloatOrNull()?:v[10],friction.text.toString().toFloatOrNull()?:v[11],bounce.text.toString().toFloatOrNull()?:v[12],gravity.isChecked)
+   saveProject();glView.requestRender()
+  }.show()
  }
  private fun togglePlay(){playing=!playing;if(playing)nativeStartEngine()else nativeStopEngine();status.text=if(playing)"● CORE ONLINE" else "● CORE PAUSED";toast(if(playing)"Play started" else "Play stopped")}
  private fun label(s:String,size:Int,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size.toFloat();setTextColor(if(s.contains("CORE ONLINE"))Color.rgb(105,220,170)else white);if(bold)typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(6),dp(5),dp(5),dp(5))}
