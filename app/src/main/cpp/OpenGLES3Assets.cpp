@@ -7,7 +7,8 @@ bool OpenGLES3Assets::Upload(const ImportedModel& model){
     glPixelStorei(GL_UNPACK_ALIGNMENT,1);
     for(std::size_t i=0;i<model.textures.size();++i){
         const auto& image=model.textures[i];
-        if(image.width<=0||image.height<=0||image.rgba.size()!=static_cast<std::size_t>(image.width)*static_cast<std::size_t>(image.height)*4u)continue;
+        if(image.rgba.empty())continue;
+        if(image.width<=0||image.height<=0||image.rgba.size()!=static_cast<std::size_t>(image.width)*static_cast<std::size_t>(image.height)*4u){for(GLuint made:pending)if(made)glDeleteTextures(1,&made);return false;}
         glGenTextures(1,&pending[i]);glBindTexture(GL_TEXTURE_2D,pending[i]);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
@@ -17,7 +18,6 @@ bool OpenGLES3Assets::Upload(const ImportedModel& model){
         glGenerateMipmap(GL_TEXTURE_2D);
     }
     glBindTexture(GL_TEXTURE_2D,0);
-    for(GLuint id:pending)if(id==0){for(GLuint made:pending)if(made)glDeleteTextures(1,&made);return false;}
     Clear();textures_=std::move(pending);return true;
 }
 void OpenGLES3Assets::BindBaseColor(const ImportedMaterial& material,GLuint unit)const{
