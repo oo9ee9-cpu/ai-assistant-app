@@ -97,11 +97,36 @@ class ProjectHubActivity:Activity(){
   row.addView(txt("بنية المحرك: C++20 • OpenGL ES 3.0 • جاهز",8,true).apply{setTextColor(0xFF9AB9CE.toInt())});return row
  }
  private fun newProject(){
-  val box=LinearLayout(this).apply{orientation=1;setPadding(dp(16),0,dp(16),0)}
-  val name=EditText(this).apply{hint="اسم المشروع";setSingleLine()}
+  val box=LinearLayout(this).apply{orientation=1;setPadding(dp(16),dp(8),dp(16),dp(4))}
+  val name=EditText(this).apply{
+   hint="اسم المشروع"
+   inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+   imeOptions=android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+   setSingleLine(true)
+   textDirection=View.TEXT_DIRECTION_FIRST_STRONG
+   setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG)
+   maxLines=1
+  }
   val type=Spinner(this).apply{adapter=ArrayAdapter(this@ProjectHubActivity,android.R.layout.simple_spinner_dropdown_item,listOf("3D Game","Physics Sandbox","Empty Scene","Mobile Game"))}
-  box.addView(name);box.addView(txt("قالب البداية",10,true).apply{setTextColor(muted);setPadding(0,dp(10),0,0)});box.addView(type)
-  AlertDialog.Builder(this).setTitle("إنشاء عالم جديد").setView(box).setNegativeButton("إلغاء",null).setPositiveButton("إنشاء"){_,_->val n=name.text.toString().trim().ifBlank{"My First Project"};open(ProjectStore.create(this,n,type.selectedItem.toString()))}.show()
+  box.addView(name,LinearLayout.LayoutParams(-1,dp(52)))
+  box.addView(txt("قالب البداية",10,true).apply{setTextColor(muted);setPadding(0,dp(10),0,0)})
+  box.addView(type)
+  val dialog=AlertDialog.Builder(this).setTitle("إنشاء عالم جديد").setView(box)
+   .setNegativeButton("إلغاء",null).setPositiveButton("إنشاء",null).create()
+  dialog.setOnShowListener{
+   dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener{
+    val projectName=name.text?.toString().orEmpty().trim()
+    if(projectName.isBlank()){name.error="اكتب اسم المشروع";name.requestFocus();return@setOnClickListener}
+    try{
+     val id=ProjectStore.create(this,projectName,type.selectedItem?.toString().orEmpty())
+     dialog.dismiss()
+     open(id)
+    }catch(error:Exception){
+     Toast.makeText(this,"تعذر إنشاء المشروع: ${error.localizedMessage?: "خطأ غير معروف"}",Toast.LENGTH_LONG).show()
+    }
+   }
+  }
+  dialog.show()
  }
  private fun importProject(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*"},pick)}
  @Deprecated("Use Activity Result API")
