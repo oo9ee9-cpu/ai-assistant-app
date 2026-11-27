@@ -18,15 +18,13 @@ GLuint LinkProgram(const char*vs,const char*fs){
  if(ok!=GL_TRUE){glDeleteProgram(p);return 0;}return p;
 }
 const char* meshVertex=R"(#version 300 es
-layout(location=0) in vec3 aPosition;
-layout(location=1) in vec3 aNormal;
-uniform mat4 uMvp;uniform mat4 uModel;out vec3 vNormal;
-void main(){gl_Position=uMvp*vec4(aPosition,1.0);vNormal=mat3(uModel)*aNormal;})";
+layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aNormal;layout(location=2) in vec2 aUv;
+uniform mat4 uMvp;uniform mat4 uModel;out vec3 vNormal;out vec2 vUv;
+void main(){gl_Position=uMvp*vec4(aPosition,1.0);vNormal=mat3(uModel)*aNormal;vUv=aUv;})";
 const char* meshFragment=R"(#version 300 es
-precision highp float;in vec3 vNormal;out vec4 outColor;
-void main(){vec3 n=normalize(vNormal);vec3 lightDir=normalize(vec3(-0.4,0.8,0.5));
-float diffuse=max(dot(n,lightDir),0.0);float light=0.28+0.72*diffuse;
-outColor=vec4(vec3(0.16,0.48,0.68)*light,1.0);})";
+precision highp float;in vec3 vNormal;in vec2 vUv;out vec4 outColor;
+uniform vec4 uBaseColor;uniform sampler2D uBaseTexture;uniform int uHasTexture;
+void main(){vec3 n=normalize(vNormal);vec3 lightDir=normalize(vec3(-0.4,0.8,0.5));float diffuse=max(dot(n,lightDir),0.0);float light=0.28+0.72*diffuse;vec4 albedo=uBaseColor;if(uHasTexture==1)albedo*=texture(uBaseTexture,vUv);outColor=vec4(albedo.rgb*light,albedo.a);})";
 const char* lineVertex=R"(#version 300 es
 layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aColor;
 uniform mat4 uMvp;out vec3 vColor;void main(){gl_Position=uMvp*vec4(aPosition,1.0);vColor=aColor;})";
