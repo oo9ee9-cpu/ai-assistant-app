@@ -80,7 +80,7 @@ object ProjectStore {
    var total=0L;ZipInputStream(c.contentResolver.openInputStream(uri)?:error("تعذر فتح ZIP")).use{zip->var entry=zip.nextEntry;while(entry!=null){if(!entry.isDirectory&&entry.name.substringAfterLast('.',"").lowercase(Locale.ROOT) in setOf("png","jpg","jpeg")){val safe=entry.name.replace('\\','/');require(!safe.startsWith("/")&&!safe.split('/').any{it==".."}){"مسار ZIP غير آمن"};val bytes=zip.readBytes();total+=bytes.size;require(total<=512L*1024*1024){"حزمة الخامة أكبر من الحد المسموح"};val name=safe.substringAfterLast('/');val tmp=File(dir,name);tmp.writeBytes(bytes);val key=role(name);if(key!=null&&!result.has(key))result.put(key,tmp.absolutePath)};zip.closeEntry();entry=zip.nextEntry}}
   }else if(ext in setOf("png","jpg","jpeg")){copy(c.contentResolver.openInputStream(uri)?:error("تعذر فتح الصورة"),display)}else error("اختر ZIP أو PNG أو JPG")
   require(result.has("albedo")||result.has("normal")||result.has("roughness")||result.has("ao")){"لم يتم العثور على خرائط صور مدعومة داخل الحزمة"}
-  result
+  return result
  }
  fun assetFiles(c:Context,id:String):List<File> = assetFolder(c,id).listFiles()?.filter{it.isFile && it.extension.lowercase(Locale.ROOT) in setOf("glb","gltf")}?.sortedBy{it.name.lowercase(Locale.ROOT)} ?: emptyList()
  fun deleteAsset(c:Context,id:String,relativePath:String){
