@@ -54,10 +54,18 @@ object ProjectStore {
   }
  }
  fun list(c:Context):List<AsterProject> = root(c).listFiles()?.mapNotNull{d->runCatching{val j=JSONObject(File(d,"project.json").readText());AsterProject(j.optString("id",d.name),j.optString("name","Untitled"),j.optString("template","3D Starter"),j.optLong("updatedAt"),j.optJSONArray("entities")?.length()?:0)}.getOrNull()}?.sortedByDescending{it.updatedAt}?: emptyList()
+ private fun worldFloor():JSONObject = entity("أرضية العالم",0,0f,-.35f,0f,14f,.35f,14f,isStatic=true,mass=1000f,friction=.9f,restitution=0f,useGravity=false)
+  .put("components",JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true))
+  .put("material",JSONObject().put("baseColor","#657B83").put("metallic",0.0).put("roughness",0.9).put("uvTiling",4.0))
+ private fun ensureWorldFloor(data:JSONObject):Boolean{
+  val entities=data.optJSONArray("entities")?:JSONArray().also{data.put("entities",it)}
+  for(i in 0 until entities.length())if(entities.optJSONObject(i)?.optString("name")=="أرضية العالم")return false
+  entities.put(0,worldFloor());data.put("updatedAt",System.currentTimeMillis());return true
+ }
  fun create(c:Context,name:String,template:String):String{
   val safeName=cleanDisplayName(name)
   val id=UUID.randomUUID().toString()
-  val a=JSONArray()
+  val a=JSONArray().put(worldFloor())
   if(template!="Empty"){a.put(entity("Cube_01",0,0f,0f,0f));a.put(entity("Cube_02",0,2f,0f,0f))}
   val now=System.currentTimeMillis()
   val j=JSONObject().put("format","aster-project").put("version",1).put("id",id)
@@ -66,7 +74,11 @@ object ProjectStore {
   return id
  }
  fun entity(name:String,kind:Int,x:Float,y:Float,z:Float,sx:Float=1f,sy:Float=1f,sz:Float=1f,rx:Float=0f,ry:Float=0f,rz:Float=0f,isStatic:Boolean=false,mass:Float=1f,friction:Float=.65f,restitution:Float=.05f,useGravity:Boolean=true,vx:Float=0f,vy:Float=0f,vz:Float=0f)=JSONObject().put("name",name).put("kind",kind).put("x",x).put("y",y).put("z",z).put("sx",sx).put("sy",sy).put("sz",sz).put("rx",rx).put("ry",ry).put("rz",rz).put("isStatic",isStatic).put("mass",mass).put("friction",friction).put("restitution",restitution).put("useGravity",useGravity).put("vx",vx).put("vy",vy).put("vz",vz)
- fun read(c:Context,id:String)=JSONObject(file(c,id).readText())
+ fun read(c:Context,id:String):JSONObject{
+  val data=JSONObject(file(c,id).readText())
+  if(ensureWorldFloor(data))writeJson(file(c,id),data)
+  return data
+ }
  fun assetFolder(c:Context,id:String)=File(folder(c,id),"Assets/Models").apply{mkdirs()}
  fun repositoryModelIndex():List<Pair<String,Long>>{val con=URL("https://api.github.com/repos/oo9ee9-cpu/uploads/git/trees/main?recursive=1").openConnection() as HttpURLConnection;con.connectTimeout=15000;con.readTimeout=20000;try{require(con.responseCode in 200..299){"تعذر جلب فهرس النماذج"};val j=JSONObject(con.inputStream.bufferedReader().use{it.readText()});val a=j.optJSONArray("tree")?:JSONArray();return (0 until a.length()).mapNotNull{a.optJSONObject(it)}.filter{it.optString("type")=="blob"&&it.optString("path").endsWith(".glb",true)}.map{it.optString("path") to it.optLong("size")}.sortedBy{it.first}}finally{con.disconnect()}}
  fun downloadRepositoryModel(c:Context,id:String,name:String):String{require(name.matches(Regex("[A-Za-z0-9._-]+\\.glb",RegexOption.IGNORE_CASE)));val con=URL("https://raw.githubusercontent.com/oo9ee9-cpu/uploads/main/"+name).openConnection() as HttpURLConnection;con.connectTimeout=15000;con.readTimeout=60000;try{require(con.responseCode in 200..299){"تعذر تنزيل النموذج"};val target=File(assetFolder(c,id),name);require(!target.exists());con.inputStream.use{input->target.outputStream().use{output->val b=ByteArray(65536);var total=0L;while(true){val n=input.read(b);if(n<0)break;total+=n;require(total<40L*1024*1024);output.write(b,0,n)}}};require(target.length()>0);return target.relativeTo(folder(c,id)).invariantSeparatorsPath}catch(e:Exception){File(assetFolder(c,id),name).delete();throw e}finally{con.disconnect()}}
@@ -196,9 +208,13 @@ object ProjectStore {
  fun save(c:Context,id:String,name:String,template:String,entities:JSONArray){
   val f=file(c,id)
   val j=runCatching{JSONObject(f.readText(Charsets.UTF_8))}.getOrElse{JSONObject()}
+  val normalized=JSONObject().put("entities",JSONArray().also{copy->
+   for(i in 0 until entities.length())copy.put(entities.optJSONObject(i))
+  })
+  ensureWorldFloor(normalized)
   j.put("format","aster-project").put("version",1).put("id",id).put("name",cleanDisplayName(name))
    .put("template",template).put("createdAt",j.optLong("createdAt",System.currentTimeMillis()))
-   .put("updatedAt",System.currentTimeMillis()).put("entities",entities)
+   .put("updatedAt",System.currentTimeMillis()).put("entities",normalized.optJSONArray("entities"))
   writeJson(f,j)
  }
  fun import(c:Context,uri:Uri):String{
@@ -211,7 +227,7 @@ object ProjectStore {
   val j=JSONObject(raw);require(j.optString("format")=="aster-project"){"Not an Aster project file"}
   require(j.optInt("version")==1){"Unsupported project version"}
   val id=UUID.randomUUID().toString();j.put("id",id).put("updatedAt",System.currentTimeMillis())
-  if(!j.has("entities"))j.put("entities",JSONArray());file(c,id).writeText(j.toString(2));return id
+  if(!j.has("entities"))j.put("entities",JSONArray());ensureWorldFloor(j);writeJson(file(c,id),j);return id
  }
  fun rename(c:Context,id:String,name:String){val j=read(c,id).put("name",cleanDisplayName(name)).put("updatedAt",System.currentTimeMillis());writeJson(file(c,id),j)}
  fun delete(c:Context,id:String){folder(c,id).deleteRecursively()}

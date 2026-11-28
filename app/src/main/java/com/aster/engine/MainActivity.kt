@@ -28,7 +28,7 @@ import javax.microedition.khronos.opengles.GL10
 
 class MainActivity:Activity(){
  companion object{init{System.loadLibrary("aster_engine")}}
- private external fun nativeImportModel(path:String,entityId:Int):String
+ private external fun nativeImportModel(path:String,entityId:Int,autoScale:Boolean):String
  private external fun nativeSetPbrTextures(id:Int,albedo:String,normal:String,roughness:String,ao:String):String
  private external fun nativeSetPbrTiling(id:Int,value:Float)
  private external fun nativeResetScene()
@@ -67,6 +67,10 @@ class MainActivity:Activity(){
  private val undoStack=java.util.ArrayDeque<String>()
  private lateinit var leftPanel:LinearLayout
  private lateinit var rightPanel:LinearLayout
+ private lateinit var leftPanelToggle:TextView
+ private lateinit var rightPanelToggle:TextView
+ private var leftPanelVisible=true
+ private var rightPanelVisible=true
  private var panelsVisible=true
  private var undoing=false
  private var projectId=""
@@ -134,7 +138,7 @@ class MainActivity:Activity(){
   status=label("● المحرّك يعمل",9);top.addView(status)
   top.addView(action("المشاريع"){saveProject();startActivity(Intent(this@MainActivity,ProjectHubActivity::class.java));finish()})
   top.addView(action("تراجع"){undoLast()})
-  top.addView(action("القوائم"){panelsVisible=!panelsVisible;leftPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;rightPanel.visibility=if(panelsVisible)View.VISIBLE else View.GONE;glView.requestLayout()})
+  top.addView(action("القوائم"){panelsVisible=!panelsVisible;leftPanelVisible=panelsVisible;rightPanelVisible=panelsVisible;leftPanel.visibility=if(leftPanelVisible)View.VISIBLE else View.GONE;rightPanel.visibility=if(rightPanelVisible)View.VISIBLE else View.GONE;updatePanelArrows();glView.requestLayout()})
   top.addView(action("إضافة +"){showAddMenu(it)})
   top.addView(action("تحريك"){gizmo=!gizmo;toast(if(gizmo)"تم تفعيل تحريك المحاور" else "تم تفعيل تدوير الكاميرا")})
   playButton=action("▶ تجربة اللعب"){togglePlay()};top.addView(playButton)
@@ -147,6 +151,8 @@ class MainActivity:Activity(){
   val left=leftPanel
   hierarchy=LinearLayout(this).apply{orientation=1}
   left.addView(hierarchy,LinearLayout.LayoutParams(-1,0,1f));work.addView(left,LinearLayout.LayoutParams(0,-1,.22f))
+  leftPanelToggle=action("‹"){leftPanelVisible=!leftPanelVisible;leftPanel.visibility=if(leftPanelVisible)View.VISIBLE else View.GONE;updatePanelArrows();glView.requestLayout()}
+  leftPanelToggle.layoutParams=LinearLayout.LayoutParams(dp(22),-1);work.addView(leftPanelToggle)
   val center=LinearLayout(this).apply{orientation=1;viewportHeader=section("منظور المشهد • OpenGL ES 3.0");addView(viewportHeader)}
   val viewport=FrameLayout(this);glView=EngineSurfaceView();viewport.addView(glView,FrameLayout.LayoutParams(-1,-1))
   val joystick=JoystickView(this){forward,strafe->if(playing)glView.queueEvent{nativePlayMove(forward,strafe,1f/60f)}};playJoystick=joystick
@@ -163,9 +169,16 @@ class MainActivity:Activity(){
   scale=property("الحجم","اضغط للتعديل");scale.setOnClickListener{editVector(true)};right.addView(scale)
   right.addView(section("عارض المجسم"));right.addView(property("نوع المجسم","حسب نوع الكائن"));right.addView(property("الخامة","حسب النموذج المستورد"))
   right.addView(section("الفيزياء"));right.addView(property("جسم فيزيائي","اضغط للضبط").apply{setOnClickListener{editPhysics()}});right.addView(property("السرعة","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("السرعة",14){a->ids[selected]?.let{id->nativeSetVelocity(id,a[0],a[1],a[2]);saveProject()}}}})
+  rightPanelToggle=action("›"){rightPanelVisible=!rightPanelVisible;rightPanel.visibility=if(rightPanelVisible)View.VISIBLE else View.GONE;updatePanelArrows()}
+  rightPanelToggle.layoutParams=LinearLayout.LayoutParams(dp(22),-1);work.addView(rightPanelToggle)
   work.addView(right,LinearLayout.LayoutParams(0,-1,.22f))
+  updatePanelArrows()
   root.addView(work,LinearLayout.LayoutParams(-1,0,1f));editorFooter=label("نواة C++20 • حفظ محلي للمشروع • أندرويد",9);root.addView(editorFooter,LinearLayout.LayoutParams(-1,dp(24)))
   setContentView(root);rebuildHierarchy();refreshInspector()
+ }
+ private fun updatePanelArrows(){
+  if(::leftPanelToggle.isInitialized){leftPanelToggle.text=if(leftPanelVisible)"‹" else "›";leftPanelToggle.contentDescription=if(leftPanelVisible)"طي التسلسل الهرمي" else "إظهار التسلسل الهرمي"}
+  if(::rightPanelToggle.isInitialized){rightPanelToggle.text=if(rightPanelVisible)"›" else "‹";rightPanelToggle.contentDescription=if(rightPanelVisible)"طي الخصائص" else "إظهار الخصائص"}
  }
  private fun showAddMenu(anchor:View){val m=PopupMenu(this,anchor);listOf("Cube","Sphere","Light","Camera").forEachIndexed{i,n->m.menu.add(n).setOnMenuItemClickListener{
   recordUndo();nativeAddEntity(i);val id=nextId++;val name=when(i){2->"Point Light_"+id;3->"Camera_"+id;else->n+"_"+id};names.add(name);ids[name]=id;select(name);saveProject();true
@@ -215,7 +228,7 @@ class MainActivity:Activity(){
     row.addView(action("تحميل"){ 
      val relative=file.relativeTo(File(ProjectStore.storagePath(this),projectId)).invariantSeparatorsPath
      if(!modelPaths.contains(relative)){recordUndo();modelPaths.add(relative);saveProject()}
-     glView.queueEvent{val msg=nativeImportModel(file.absolutePath,ids[selected]?:0);runOnUiThread{toast(msg)}}
+     glView.queueEvent{val msg=nativeImportModel(file.absolutePath,ids[selected]?:0,false);runOnUiThread{toast(msg)}}
     })
     row.addView(action("حذف"){ 
      AlertDialog.Builder(this).setTitle("حذف الأصل").setMessage("سيُحذف الملف من المشروع نهائياً. هل تريد المتابعة؟")
@@ -269,7 +282,7 @@ class MainActivity:Activity(){
    },"aster-pbr-import").start()
    return
   }
-  if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}
+  if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id,true);runOnUiThread{if(msg=="تم استيراد النموذج وعرضه"){saveProject();refreshInspector()};toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}
  }
  private fun deleteSelected(){
   val id=ids[selected]?:return
@@ -299,11 +312,11 @@ class MainActivity:Activity(){
    nativeStartEngine();if(cameraTarget>0)nativeSetThirdPerson(cameraTarget,true)
    playing=true;playButton.text="↩ العودة إلى التطوير";status.visibility=View.GONE
    for(i in 0 until editorTop.childCount){val child=editorTop.getChildAt(i);child.visibility=if(child===playButton)View.VISIBLE else View.GONE}
-   leftPanel.visibility=View.GONE;rightPanel.visibility=View.GONE;viewportHeader.visibility=View.GONE;editorFooter.visibility=View.GONE;playJoystick.visibility=View.VISIBLE;toast("بدأت التجربة — اسحب يمين الشاشة لتدوير الكاميرا")
+   leftPanel.visibility=View.GONE;rightPanel.visibility=View.GONE;leftPanelToggle.visibility=View.GONE;rightPanelToggle.visibility=View.GONE;viewportHeader.visibility=View.GONE;editorFooter.visibility=View.GONE;playJoystick.visibility=View.VISIBLE;toast("بدأت التجربة — اسحب يمين الشاشة لتدوير الكاميرا")
   }else{
    nativeSetThirdPerson(0,false);nativeStopEngine();playing=false;playButton.text="▶ تجربة اللعب";status.visibility=View.VISIBLE
    for(i in 0 until editorTop.childCount)editorTop.getChildAt(i).visibility=View.VISIBLE
-   leftPanel.visibility=View.VISIBLE;rightPanel.visibility=View.VISIBLE;viewportHeader.visibility=View.VISIBLE;editorFooter.visibility=View.VISIBLE;playJoystick.visibility=View.GONE;refreshInspector();saveProject();glView.requestRender();toast("عدت إلى وضع التطوير")
+   leftPanel.visibility=if(leftPanelVisible)View.VISIBLE else View.GONE;rightPanel.visibility=if(rightPanelVisible)View.VISIBLE else View.GONE;leftPanelToggle.visibility=View.VISIBLE;rightPanelToggle.visibility=View.VISIBLE;updatePanelArrows();viewportHeader.visibility=View.VISIBLE;editorFooter.visibility=View.VISIBLE;playJoystick.visibility=View.GONE;refreshInspector();saveProject();glView.requestRender();toast("عدت إلى وضع التطوير")
   }
  }
  private fun showModelSources(){
@@ -335,7 +348,7 @@ class MainActivity:Activity(){
  private inner class EngineSurfaceView:GLSurfaceView(this@MainActivity){
   private var x0=0f;private var y0=0f;private var downX=0f;private var downY=0f;private var touchMoved=false;private var oldDist=0f;private var activeAxis=0
   init{setEGLContextClientVersion(3);preserveEGLContextOnPause=true
-   setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime();for((n,relative) in modelByEntity.toMap()){val path=File(ProjectStore.storagePath(this@MainActivity),"$projectId/$relative").absolutePath;nativeImportModel(path,ids[n]?:continue)};for((n,m) in materialsByEntity){val id=ids[n]?:continue;val base=File(ProjectStore.storagePath(this@MainActivity),projectId);val path={key:String->m.optString(key+"Path","")};nativeSetPbrTextures(id,path("albedo"),path("normal"),path("roughness"),path("ao"));nativeSetPbrTiling(id,m.optDouble("uvTiling",1.0).toFloat())}}
+   setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime();for((n,relative) in modelByEntity.toMap()){val path=File(ProjectStore.storagePath(this@MainActivity),"$projectId/$relative").absolutePath;nativeImportModel(path,ids[n]?:continue,false)};for((n,m) in materialsByEntity){val id=ids[n]?:continue;val base=File(ProjectStore.storagePath(this@MainActivity),projectId);val path={key:String->m.optString(key+"Path","")};nativeSetPbrTextures(id,path("albedo"),path("normal"),path("roughness"),path("ao"));nativeSetPbrTiling(id,m.optDouble("uvTiling",1.0).toFloat())}}
     override fun onSurfaceChanged(gl:GL10?,w:Int,h:Int){nativeSurfaceChanged(w,h)}
     override fun onDrawFrame(gl:GL10?){val now=System.nanoTime();nativeRender(((now-last)/1e9).toFloat().coerceIn(0f,.1f));last=now}
    });renderMode=RENDERMODE_CONTINUOUSLY

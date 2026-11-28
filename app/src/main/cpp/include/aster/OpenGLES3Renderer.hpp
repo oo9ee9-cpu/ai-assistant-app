@@ -13,7 +13,7 @@ public:
  OpenGLES3Renderer(const Scene*s,Engine*e):scene_(s),engine_(e){}
  void Initialize()override;void Resize(int,int)override;void RenderFrame()override;void Shutdown()override;
  int PickGizmoAxis(float,float)const;int PickEntity(float,float)const;void DragGizmoAxis(int,float,float);
- bool ImportModel(const std::string&,EntityId,std::string&);bool SetMaterialTextures(EntityId,const std::string&,const std::string&,const std::string&,const std::string&,std::string&);void SetMaterialTiling(EntityId,float);
+ bool ImportModel(const std::string&,EntityId,bool,std::string&);bool SetMaterialTextures(EntityId,const std::string&,const std::string&,const std::string&,const std::string&,std::string&);void SetMaterialTiling(EntityId,float);
 private:
  struct GpuPrimitive{unsigned int vao{0},vbo{0},ebo{0};int indexCount{0},materialIndex{-1};};
  struct GpuModel{EntityId entityId{0};std::vector<GpuPrimitive> primitives;OpenGLES3Assets assets;std::vector<ImportedMaterial> materials;};

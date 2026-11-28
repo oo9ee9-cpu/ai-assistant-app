@@ -168,7 +168,15 @@ void OpenGLES3Renderer::RenderFrame(){
  glBindVertexArray(0);
  for(const auto& model:imported_){const Entity* owner=scene_->Find(model->entityId);if(!owner||!owner->visible)continue;const Mat4 transform=Mat4::Translation(owner->transform.position)*Mat4::RotationZ(owner->transform.rotation.z)*Mat4::RotationY(owner->transform.rotation.y)*Mat4::RotationX(owner->transform.rotation.x)*Mat4::Scale(owner->transform.scale);const Mat4 modelMvp=vp*transform;for(const auto& primitive:model->primitives){glUseProgram(program_);glBindVertexArray(primitive.vao);glUniformMatrix4fv(mvp_,1,GL_FALSE,modelMvp.m);glUniformMatrix4fv(model_,1,GL_FALSE,transform.m);
   ImportedMaterial mat;if(primitive.materialIndex>=0&&static_cast<size_t>(primitive.materialIndex)<model->materials.size())mat=model->materials[primitive.materialIndex];
-  glUniform4fv(baseColor_,1,mat.baseColor);glUniform1i(hasTexture_,mat.baseColorTexture>=0?1:0);glUniform1f(metallic_,mat.metallic);glUniform1f(roughness_,mat.roughness);glUniform1i(selected_,0);model->assets.BindBaseColor(mat,0);
+  const auto pbrIt=pbr_.find(owner->id);const PbrSet* overridePbr=pbrIt==pbr_.end()?nullptr:&pbrIt->second;
+  glUniform4fv(baseColor_,1,mat.baseColor);glUniform1f(metallic_,mat.metallic);glUniform1f(roughness_,mat.roughness);
+  glUniform1f(tiling_,overridePbr?overridePbr->tiling:1.0f);
+  glUniform1i(hasTexture_,overridePbr&&overridePbr->albedo?1:(mat.baseColorTexture>=0?1:0));
+  glUniform1i(hasNormal_,overridePbr&&overridePbr->normal?1:0);glUniform1i(hasRough_,overridePbr&&overridePbr->roughness?1:0);glUniform1i(hasAo_,overridePbr&&overridePbr->ao?1:0);
+  glActiveTexture(GL_TEXTURE0);if(overridePbr&&overridePbr->albedo)glBindTexture(GL_TEXTURE_2D,overridePbr->albedo);else model->assets.BindBaseColor(mat,0);
+  glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,overridePbr?overridePbr->normal:0);
+  glActiveTexture(GL_TEXTURE2);glBindTexture(GL_TEXTURE_2D,overridePbr?overridePbr->roughness:0);
+  glActiveTexture(GL_TEXTURE3);glBindTexture(GL_TEXTURE_2D,overridePbr?overridePbr->ao:0);
   glUniform1i(selected_,owner->id==engine_->Selected()?1:0);glDrawElements(GL_TRIANGLES,primitive.indexCount,GL_UNSIGNED_INT,nullptr);
   }
  }
@@ -176,8 +184,21 @@ void OpenGLES3Renderer::RenderFrame(){
 }
 bool OpenGLES3Renderer::SetMaterialTextures(EntityId id,const std::string& a,const std::string& n,const std::string& r,const std::string& ao,std::string& error){if(!scene_||!scene_->Find(id)){error="العنصر المحدد غير موجود";return false;}auto load=[](const std::string& path)->GLuint{if(path.empty())return 0;std::ifstream f(path,std::ios::binary);if(!f)return 0;f.seekg(0,std::ios::end);auto z=f.tellg();if(z<=0||z>static_cast<std::streamoff>(256*1024*1024))return 0;std::vector<unsigned char>b(static_cast<size_t>(z));f.seekg(0);if(!f.read(reinterpret_cast<char*>(b.data()),z))return 0;int w=0,h=0,c=0;stbi_uc*p=stbi_load_from_memory(b.data(),(int)b.size(),&w,&h,&c,4);if(!p||w<=0||h<=0){if(p)stbi_image_free(p);return 0;}GLuint t=0;glGenTextures(1,&t);glBindTexture(GL_TEXTURE_2D,t);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,p);glGenerateMipmap(GL_TEXTURE_2D);stbi_image_free(p);return t;};PbrSet q;q.albedo=load(a);q.normal=load(n);q.roughness=load(r);q.ao=load(ao);if((!a.empty()&&!q.albedo)||(!n.empty()&&!q.normal)||(!r.empty()&&!q.roughness)||(!ao.empty()&&!q.ao)){for(GLuint t:{q.albedo,q.normal,q.roughness,q.ao})if(t)glDeleteTextures(1,&t);error="تعذر قراءة الخرائط؛ استخدم PNG أو JPG";return false;}auto old=pbr_.find(id);if(old!=pbr_.end()){q.tiling=old->second.tiling;for(GLuint t:{old->second.albedo,old->second.normal,old->second.roughness,old->second.ao})if(t)glDeleteTextures(1,&t);}pbr_[id]=q;error.clear();return true;}
 void OpenGLES3Renderer::SetMaterialTiling(EntityId id,float v){if(std::isfinite(v))pbr_[id].tiling=std::clamp(v,.1f,64.0f);}
-bool OpenGLES3Renderer::ImportModel(const std::string& path,EntityId entityId,std::string& error){
+bool OpenGLES3Renderer::ImportModel(const std::string& path,EntityId entityId,bool autoScale,std::string& error){
  ImportResult parsed=GltfImporter::Load(path);if(!parsed){error=parsed.error;return false;}
+ if(autoScale&&engine_){
+  float minX=std::numeric_limits<float>::max(),minY=minX,minZ=minX;
+  float maxX=std::numeric_limits<float>::lowest(),maxY=maxX,maxZ=maxX;
+  for(const auto& mesh:parsed.model.meshes)for(const auto& primitive:mesh.primitives)for(const auto& vertex:primitive.vertices){
+   minX=std::min(minX,vertex.position[0]);minY=std::min(minY,vertex.position[1]);minZ=std::min(minZ,vertex.position[2]);
+   maxX=std::max(maxX,vertex.position[0]);maxY=std::max(maxY,vertex.position[1]);maxZ=std::max(maxZ,vertex.position[2]);
+  }
+  const float extent=std::max({maxX-minX,maxY-minY,maxZ-minZ});
+  if(std::isfinite(extent)&&extent>1e-5f)if(Entity* target=engine_->GetScene().Find(entityId)){
+   const float currentMax=std::max({std::fabs(target->transform.scale.x),std::fabs(target->transform.scale.y),std::fabs(target->transform.scale.z)});
+   if(std::fabs(currentMax-1.0f)<1e-5f){const float factor=std::clamp(2.0f/extent,0.001f,1000.0f);engine_->SetScale(entityId,{factor,factor,factor});}
+  }
+ }
  auto gpu=std::make_unique<GpuModel>();gpu->entityId=entityId;gpu->materials=parsed.model.materials;
  if(!gpu->assets.Upload(parsed.model)){error="تعذر رفع خامات النموذج";return false;}
  for(const auto& mesh:parsed.model.meshes)for(const auto& src:mesh.primitives){
