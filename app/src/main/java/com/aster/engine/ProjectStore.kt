@@ -91,11 +91,11 @@ object ProjectStore {
   fun safeName(raw:String,extension:String):String{
    val leaf=raw.replace('\\','/').substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"),"_")
    val stem=leaf.substringBeforeLast('.',leaf).ifBlank{"texture"}.take(90)
-   return "$"+"{stem}.$"+"{extension}"
+   return "${stem}.${extension}"
   }
   fun uniqueFile(raw:String,extension:String):File{
    val base=safeName(raw,extension);var target=File(dir,base);var i=1
-   while(target.exists()){target=File(dir,"$"+"{base.substringBeforeLast('.')}_$"+"{i}.$"+"{extension}");i++}
+   while(target.exists()){target=File(dir,"${base.substringBeforeLast('.')}_${i}.${extension}");i++}
    return target
   }
   fun copyBounded(input:java.io.InputStream,target:File,limit:Long){
@@ -104,6 +104,15 @@ object ProjectStore {
     while(true){val n=src.read(buffer);if(n<0)break;total+=n;require(total<=limit){"حجم الملف يتجاوز الحد المسموح"};dst.write(buffer,0,n)}
    }}
    require(target.length()>0){"الملف فارغ"}
+  }
+  fun copyZipEntry(zip:ZipInputStream,target:File,limit:Long):Long{
+   var total=0L
+   FileOutputStream(target).use{dst->
+    val buffer=ByteArray(64*1024)
+    while(true){val n=zip.read(buffer);if(n<0)break;total+=n;require(total<=limit){"حجم صورة ZIP يتجاوز الحد المسموح"};dst.write(buffer,0,n)}
+   }
+   require(target.length()>0){"صورة فارغة داخل ZIP"}
+   return total
   }
   fun role(raw:String):String?{
    val n=raw.lowercase(Locale.ROOT)
@@ -138,7 +147,7 @@ object ProjectStore {
         require(!normalized.startsWith("/")&&!normalized.split('/').any{it==".."}){"مسار غير آمن داخل ZIP"}
         val entryExt=normalized.substringAfterLast('.',"").lowercase(Locale.ROOT)
         if(entryExt in setOf("png","jpg","jpeg")){
-         val temp=uniqueFile(normalized,entryExt);copyBounded(zip,temp,128L*1024*1024)
+         val temp=uniqueFile(normalized,entryExt);copyZipEntry(zip,temp,128L*1024*1024)
          total+=temp.length();require(total<=512L*1024*1024){"مجموع صور ZIP أكبر من الحد المسموح"}
          val imageKind=magic(temp)
          if(imageKind=="png"||imageKind=="jpg"){
