@@ -1,6 +1,10 @@
 package com.aster.engine
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.zip.ZipException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -70,17 +74,95 @@ object ProjectStore {
 
 
  fun importPbrTexture(c:Context,id:String,uri:Uri):JSONObject{
-  val dir=File(folder(c,id),"Assets/Textures").apply{mkdirs()}
-  val display=uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?: "texture"
-  val ext=display.substringAfterLast('.',"").lowercase(Locale.ROOT)
-  val result=JSONObject()
-  fun role(name:String):String?{val n=name.lowercase(Locale.ROOT);return when{n.contains("normalgl")||n.contains("normal_dx")||n.contains("normal")||n.contains("_nor")->"normal";n.contains("roughness")||n.contains("_rough")->"roughness";n.contains("ambientocclusion")||n.contains("_ao")||n.contains("occlusion")->"ao";n.contains("color")||n.contains("albedo")||n.contains("diffuse")||n.contains("_col")->"albedo";else->null}}
-  fun copy(input:java.io.InputStream,name:String){val safe=name.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"),"_");val out=File(dir,safe);input.use{src->out.outputStream().use{dst->src.copyTo(dst)}};require(out.length()>0);val key=role(name)?:if(ext=="png"||ext=="jpg"||ext=="jpeg")"albedo" else "";if(key.isNotEmpty()&&!result.has(key))result.put(key,out.absolutePath)}
-  if(ext=="zip"){
-   var total=0L;ZipInputStream(c.contentResolver.openInputStream(uri)?:error("تعذر فتح ZIP")).use{zip->var entry=zip.nextEntry;while(entry!=null){if(!entry.isDirectory&&entry.name.substringAfterLast('.',"").lowercase(Locale.ROOT) in setOf("png","jpg","jpeg")){val safe=entry.name.replace('\\','/');require(!safe.startsWith("/")&&!safe.split('/').any{it==".."}){"مسار ZIP غير آمن"};val bytes=zip.readBytes();total+=bytes.size;require(total<=512L*1024*1024){"حزمة الخامة أكبر من الحد المسموح"};val name=safe.substringAfterLast('/');val tmp=File(dir,name);tmp.writeBytes(bytes);val key=role(name);if(key!=null&&!result.has(key))result.put(key,tmp.absolutePath)};zip.closeEntry();entry=zip.nextEntry}}
-  }else if(ext in setOf("png","jpg","jpeg")){copy(c.contentResolver.openInputStream(uri)?:error("تعذر فتح الصورة"),display)}else error("اختر ZIP أو PNG أو JPG")
-  require(result.has("albedo")||result.has("normal")||result.has("roughness")||result.has("ao")){"لم يتم العثور على خرائط صور مدعومة داخل الحزمة"}
-  return result
+  val dir=File(folder(c,id),"Assets/Textures").apply{if(!exists()&&!mkdirs())throw java.io.IOException("تعذر إنشاء مجلد الخامات")}
+  val displayName=runCatching{
+   c.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use{cursor->
+    if(cursor.moveToFirst())cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)) else null
+   }
+  }.getOrNull()?.takeIf{it.isNotBlank()} ?: "texture"
+  val mime=c.contentResolver.getType(uri)?.lowercase(Locale.ROOT).orEmpty()
+  fun magic(file:File):String{
+   val h=ByteArray(8);val count=FileInputStream(file).use{it.read(h)}
+   if(count>=4&&h[0]==0x50.toByte()&&h[1]==0x4b.toByte()&&((h[2]==0x03.toByte()&&h[3]==0x04.toByte())||(h[2]==0x05.toByte()&&h[3]==0x06.toByte())||(h[2]==0x07.toByte()&&h[3]==0x08.toByte())))return "zip"
+   if(count>=8&&h.sliceArray(0..7).contentEquals(byteArrayOf(0x89.toByte(),0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a)))return "png"
+   if(count>=3&&h[0]==0xff.toByte()&&h[1]==0xd8.toByte()&&h[2]==0xff.toByte())return "jpg"
+   return ""
+  }
+  fun safeName(raw:String,extension:String):String{
+   val leaf=raw.replace('\\','/').substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"),"_")
+   val stem=leaf.substringBeforeLast('.',leaf).ifBlank{"texture"}.take(90)
+   return "$"+"{stem}.$"+"{extension}"
+  }
+  fun uniqueFile(raw:String,extension:String):File{
+   val base=safeName(raw,extension);var target=File(dir,base);var i=1
+   while(target.exists()){target=File(dir,"$"+"{base.substringBeforeLast('.')}_$"+"{i}.$"+"{extension}");i++}
+   return target
+  }
+  fun copyBounded(input:java.io.InputStream,target:File,limit:Long){
+   input.use{src->FileOutputStream(target).use{dst->
+    val buffer=ByteArray(64*1024);var total=0L
+    while(true){val n=src.read(buffer);if(n<0)break;total+=n;require(total<=limit){"حجم الملف يتجاوز الحد المسموح"};dst.write(buffer,0,n)}
+   }}
+   require(target.length()>0){"الملف فارغ"}
+  }
+  fun role(raw:String):String?{
+   val n=raw.lowercase(Locale.ROOT)
+   return when{
+    n.contains("normalgl")||n.contains("normal_dx")||n.contains("normal")||n.contains("_nor")->"normal"
+    n.contains("roughness")||n.contains("_rough")->"roughness"
+    n.contains("ambientocclusion")||n.contains("_ao")||n.contains("occlusion")->"ao"
+    n.contains("color")||n.contains("albedo")||n.contains("diffuse")||n.contains("_col")->"albedo"
+    else->null
+   }
+  }
+  val result=JSONObject();val staged=uniqueFile(displayName,"bin")
+  try{
+   copyBounded(c.contentResolver.openInputStream(uri)?:error("تعذر فتح الملف من مستعرض Android"),staged,512L*1024*1024)
+   val kind=magic(staged);val ext=displayName.substringAfterLast('.',"").lowercase(Locale.ROOT)
+   val declaredZip=mime=="application/zip"||mime=="application/x-zip-compressed"||ext=="zip"
+   val declaredImage=mime.startsWith("image/")||ext in setOf("png","jpg","jpeg")
+   require(kind.isNotEmpty()){"نوع الملف غير معروف أو تالف (MIME: "+(mime.ifBlank{"غير محدد"})+")"}
+   require((declaredZip&&kind=="zip")||(!declaredZip&&kind in setOf("png","jpg"))||(!declaredImage&&kind in setOf("zip","png","jpg"))){"امتداد أو MIME لا يطابق محتوى الملف"}
+   if(kind=="png"||kind=="jpg"){
+    val extension=if(kind=="jpg")"jpg" else "png";val target=uniqueFile(displayName,extension)
+    if(!staged.renameTo(target)){FileInputStream(staged).use{copyBounded(it,target,512L*1024*1024)};staged.delete()}
+    result.put(role(displayName)?: "albedo",target.absolutePath)
+   }else{
+    var total=0L;var images=0
+    try{
+     ZipInputStream(FileInputStream(staged)).use{zip->
+      var entry=zip.nextEntry
+      while(entry!=null){
+       if(!entry.isDirectory){
+        val normalized=entry.name.replace('\\','/')
+        require(!normalized.startsWith("/")&&!normalized.split('/').any{it==".."}){"مسار غير آمن داخل ZIP"}
+        val entryExt=normalized.substringAfterLast('.',"").lowercase(Locale.ROOT)
+        if(entryExt in setOf("png","jpg","jpeg")){
+         val temp=uniqueFile(normalized,entryExt);copyBounded(zip,temp,128L*1024*1024)
+         total+=temp.length();require(total<=512L*1024*1024){"مجموع صور ZIP أكبر من الحد المسموح"}
+         val imageKind=magic(temp)
+         if(imageKind=="png"||imageKind=="jpg"){
+          val actualExt=if(imageKind=="jpg")"jpg" else "png"
+          val target=if(temp.extension==actualExt)temp else uniqueFile(normalized,actualExt).also{if(!temp.renameTo(it))throw java.io.IOException("تعذر حفظ صورة من ZIP")}
+          val key=role(normalized);if(key!=null&&!result.has(key))result.put(key,target.absolutePath)
+          images++
+         }else temp.delete()
+        }
+       }
+       zip.closeEntry();entry=zip.nextEntry
+      }
+     }
+    }catch(e:ZipException){throw IllegalArgumentException("أرشيف ZIP تالف أو غير مكتمل",e)}
+    require(images>0){"الأرشيف لا يحتوي صور PNG أو JPG سليمة"}
+    if(!result.has("albedo")){
+     val first=dir.listFiles()?.firstOrNull{it.isFile&&it.extension in setOf("png","jpg")}
+     if(first!=null)result.put("albedo",first.absolutePath)
+    }
+   }
+   require(result.length()>0){"لم يتم العثور على خرائط خامة صالحة"}
+   return result
+  }catch(e:Exception){throw IllegalArgumentException(e.message?.takeIf{it.isNotBlank()}?:"تعذر قراءة ملف الخامة",e)}
+  finally{staged.delete()}
  }
  fun assetFiles(c:Context,id:String):List<File> = assetFolder(c,id).listFiles()?.filter{it.isFile && it.extension.lowercase(Locale.ROOT) in setOf("glb","gltf")}?.sortedBy{it.name.lowercase(Locale.ROOT)} ?: emptyList()
  fun deleteAsset(c:Context,id:String,relativePath:String){

@@ -2,6 +2,7 @@ package com.aster.engine
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import java.io.File
 import android.os.Bundle
 import android.graphics.Color
@@ -236,7 +237,40 @@ class MainActivity:Activity(){
  private fun editPbrTiling(){val id=ids[selected]?:return;val name=selected;val mat=materialsByEntity[name]?:JSONObject();val field=EditText(this).apply{hint="UV Tiling (0.1 - 64)";setText(mat.optDouble("uvTiling",4.0).toString());inputType=8194};AlertDialog.Builder(this).setTitle("تكرار الخامة").setMessage("قيمة أكبر تعني تكرار التفاصيل أكثر وتقليل تمددها.").setView(field).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->val v=(field.text.toString().toFloatOrNull()?:4f).coerceIn(.1f,64f);mat.put("uvTiling",v.toDouble());materialsByEntity[name]=mat;glView.queueEvent{nativeSetPbrTiling(id,v)};saveProject();glView.requestRender()}.show()}
  private fun pickModel(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("model/gltf-binary","model/gltf+json","application/octet-stream"))},modelPicker)}
  @Deprecated("Use Activity Result API")
- override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==pbrPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;val id=pendingPbrEntity;val name=ids.entries.firstOrNull{it.value==id}?.key?:return;runCatching{ProjectStore.importPbrTexture(this,projectId,uri)}.onSuccess{maps->val mat=materialsByEntity[name]?:JSONObject();for(key in listOf("albedo","normal","roughness","ao"))if(maps.has(key))mat.put(key+"Path",maps.optString(key));materialsByEntity[name]=mat;saveProject();val path={key:String->mat.optString(key+"Path","")};glView.queueEvent{val msg=nativeSetPbrTextures(id,path("albedo"),path("normal"),path("roughness"),path("ao"));runOnUiThread{toast(msg);glView.requestRender()}}}.onFailure{toast(it.message?:"تعذر استيراد الخامة")};return};if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
+ override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
+  super.onActivityResult(requestCode,resultCode,data)
+  if(resultCode!=RESULT_OK)return
+  if(requestCode==pbrPicker){
+   val uri=data?.data?:return
+   val id=pendingPbrEntity
+   val name=ids.entries.firstOrNull{it.value==id}?.key?:return
+   toast("جارٍ نسخ وفحص ملفات الخامة…")
+   Thread({
+    val imported=runCatching{ProjectStore.importPbrTexture(this,projectId,uri)}
+    runOnUiThread{
+     imported.onSuccess{maps->
+      val mat=materialsByEntity[name]?:JSONObject()
+      val path={key:String->maps.optString(key,"")}
+      glView.queueEvent{
+       val msg=nativeSetPbrTextures(id,path("albedo"),path("normal"),path("roughness"),path("ao"))
+       runOnUiThread{
+        if(msg=="تم تطبيق خرائط PBR"){
+         recordUndo()
+         for(key in listOf("albedo","normal","roughness","ao"))if(maps.has(key))mat.put(key+"Path",maps.optString(key))
+         materialsByEntity[name]=mat
+         saveProject()
+         toast("تم تطبيق الخامة وحفظها")
+        }else toast(msg.ifBlank{"تعذر تطبيق الخامة"})
+        glView.requestRender()
+       }
+      }
+     }.onFailure{error->toast(error.message?.take(120)?: "تعذر استيراد الخامة")}
+    }
+   },"aster-pbr-import").start()
+   return
+  }
+  if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
+ }
  private fun deleteSelected(){
   val id=ids[selected]?:return
   recordUndo();nativeDeleteEntity(id);ids.remove(selected);names.remove(selected);modelByEntity.remove(selected);scriptsByEntity.remove(selected);componentsByEntity.remove(selected);materialsByEntity.remove(selected)
