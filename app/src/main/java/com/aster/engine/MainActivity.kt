@@ -269,7 +269,7 @@ class MainActivity:Activity(){
    },"aster-pbr-import").start()
    return
   }
-  if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
+  if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}
  }
  private fun deleteSelected(){
   val id=ids[selected]?:return
