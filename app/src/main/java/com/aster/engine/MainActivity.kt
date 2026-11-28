@@ -27,7 +27,7 @@ import javax.microedition.khronos.opengles.GL10
 
 class MainActivity:Activity(){
  companion object{init{System.loadLibrary("aster_engine")}}
- private external fun nativeImportModel(path:String,entityId:Int):String
+ private external fun nativeImportModel(path:String,entityId:Int):String\n private external fun nativeSetPbrTextures(id:Int,albedo:String,normal:String,roughness:String,ao:String):String\n private external fun nativeSetPbrTiling(id:Int,value:Float)
  private external fun nativeResetScene()
  private external fun nativeStartEngine()
  private external fun nativeStopEngine()
@@ -53,7 +53,7 @@ class MainActivity:Activity(){
  private external fun nativeSurfaceCreated()
  private external fun nativeSurfaceChanged(width:Int,height:Int)
  private external fun nativeRender(deltaSeconds:Float)
- private val modelPicker=7201
+ private val modelPicker=7201\n private val pbrPicker=7202\n private var pendingPbrEntity=0
  private val modelPaths=mutableListOf<String>()
  private val modelByEntity=linkedMapOf<String,String>()
  private val scriptsByEntity=linkedMapOf<String,String>()
@@ -152,7 +152,7 @@ class MainActivity:Activity(){
   inspectorName=label(selected.ifEmpty{"لا يوجد تحديد"},14,true);right.addView(inspectorName)
   val selectedActions=LinearLayout(this).apply{orientation=0;gravity=Gravity.CENTER}
   selectedActions.addView(action("حذف العنصر"){deleteSelected()});selectedActions.addView(action("تكرار"){duplicateSelected()});selectedActions.addView(action("إعادة ضبط"){resetSelected()});selectedActions.addView(action("</> برمجة"){editScript()});selectedActions.addView(action("المكونات والخامة"){editComponentsMaterial()})
-  right.addView(selectedActions);right.addView(section("التحويل"))
+  right.addView(selectedActions);right.addView(action("تغيير خامة العنصر / رفع خامة"){pickPbrTexture()});right.addView(action("تكرار الخامة UV / Scale"){editPbrTiling()});right.addView(section("التحويل"))
   pos=property("الموقع","اضغط للتعديل");pos.setOnClickListener{editVector(false)};right.addView(pos)
   right.addView(property("الدوران","اضغط للتعديل").apply{setOnClickListener{editTripleDialog("الدوران (راديان)",6){a->val id=ids[selected]?:return@editTripleDialog;nativeSetRotation(id,a[0],a[1],a[2]);saveProject();glView.requestRender()}}})
   scale=property("الحجم","اضغط للتعديل");scale.setOnClickListener{editVector(true)};right.addView(scale)
@@ -228,9 +228,9 @@ class MainActivity:Activity(){
   refresh()
   AlertDialog.Builder(this).setTitle("أصول المشروع").setView(scroll).setPositiveButton("إغلاق",null).setNeutralButton("استيراد"){_,_->pickModel()}.show()
  }
- private fun pickModel(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("model/gltf-binary","model/gltf+json","application/octet-stream"))},modelPicker)}
+ private fun pickPbrTexture(){val id=ids[selected]?:return;pendingPbrEntity=id;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("application/zip","image/png","image/jpeg","application/octet-stream"))},pbrPicker)}\n private fun editPbrTiling(){val id=ids[selected]?:return;val name=selected;val mat=materialsByEntity[name]?:JSONObject();val field=EditText(this).apply{hint="UV Tiling (0.1 - 64)";setText(mat.optDouble("uvTiling",4.0).toString());inputType=8194};AlertDialog.Builder(this).setTitle("تكرار الخامة").setMessage("قيمة أكبر تعني تكرار التفاصيل أكثر وتقليل تمددها.").setView(field).setNegativeButton("إلغاء",null).setPositiveButton("تطبيق"){_,_->val v=(field.text.toString().toFloatOrNull()?:4f).coerceIn(.1f,64f);mat.put("uvTiling",v.toDouble());materialsByEntity[name]=mat;glView.queueEvent{nativeSetPbrTiling(id,v)};saveProject();glView.requestRender()}.show()}\n private fun pickModel(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{addCategory(Intent.CATEGORY_OPENABLE);type="*/*";putExtra(Intent.EXTRA_MIME_TYPES,arrayOf("model/gltf-binary","model/gltf+json","application/octet-stream"))},modelPicker)}
  @Deprecated("Use Activity Result API")
- override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
+ override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==pbrPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;val id=pendingPbrEntity;val name=ids.entries.firstOrNull{it.value==id}?.key?:return;runCatching{ProjectStore.importPbrTexture(this,projectId,uri)}.onSuccess{maps->val mat=materialsByEntity[name]?:JSONObject();for(key in listOf("albedo","normal","roughness","ao"))if(maps.has(key))mat.put(key+"Path",maps.optString(key));materialsByEntity[name]=mat;saveProject();val path={key:String->mat.optString(key+"Path","")};glView.queueEvent{val msg=nativeSetPbrTextures(id,path("albedo"),path("normal"),path("roughness"),path("ao"));runOnUiThread{toast(msg);glView.requestRender()}}}.onFailure{toast(it.message?:"تعذر استيراد الخامة")};return};if(requestCode==modelPicker&&resultCode==RESULT_OK){val uri=data?.data?:return;runCatching{ProjectStore.importModel(this,projectId,uri)}.onSuccess{relative->if(!modelPaths.contains(relative))modelPaths.add(relative);recordUndo();nativeAddEntity(0);val id=nextId++;val n="Model_$id";names.add(n);ids[n]=id;modelByEntity[n]=relative;componentsByEntity[n]=JSONObject().put("Transform",true).put("MeshRenderer",true).put("Physics",true);materialsByEntity[n]=JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72);select(n);saveProject();val path=File(ProjectStore.storagePath(this),"$projectId/$relative").absolutePath;glView.queueEvent{val msg=nativeImportModel(path,id);runOnUiThread{toast(msg)}}}.onFailure{toast(it.message?:"تعذر استيراد النموذج")}}}
  private fun deleteSelected(){
   val id=ids[selected]?:return
   recordUndo();nativeDeleteEntity(id);ids.remove(selected);names.remove(selected);modelByEntity.remove(selected);scriptsByEntity.remove(selected);componentsByEntity.remove(selected);materialsByEntity.remove(selected)
@@ -295,7 +295,7 @@ class MainActivity:Activity(){
  private inner class EngineSurfaceView:GLSurfaceView(this@MainActivity){
   private var x0=0f;private var y0=0f;private var downX=0f;private var downY=0f;private var touchMoved=false;private var oldDist=0f;private var activeAxis=0
   init{setEGLContextClientVersion(3);preserveEGLContextOnPause=true
-   setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime();for((n,relative) in modelByEntity.toMap()){val path=File(ProjectStore.storagePath(this@MainActivity),"$projectId/$relative").absolutePath;nativeImportModel(path,ids[n]?:continue)}}
+   setRenderer(object:Renderer{var last=0L;override fun onSurfaceCreated(gl:GL10?,c:EGLConfig?){nativeSurfaceCreated();last=System.nanoTime();for((n,relative) in modelByEntity.toMap()){val path=File(ProjectStore.storagePath(this@MainActivity),"$projectId/$relative").absolutePath;nativeImportModel(path,ids[n]?:continue)};for((n,m) in materialsByEntity){val id=ids[n]?:continue;val base=File(ProjectStore.storagePath(this@MainActivity),projectId);val path={key:String->m.optString(key+"Path","")};nativeSetPbrTextures(id,path("albedo"),path("normal"),path("roughness"),path("ao"));nativeSetPbrTiling(id,m.optDouble("uvTiling",1.0).toFloat())}}
     override fun onSurfaceChanged(gl:GL10?,w:Int,h:Int){nativeSurfaceChanged(w,h)}
     override fun onDrawFrame(gl:GL10?){val now=System.nanoTime();nativeRender(((now-last)/1e9).toFloat().coerceIn(0f,.1f));last=now}
    });renderMode=RENDERMODE_CONTINUOUSLY

@@ -6,6 +6,8 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include <fstream>
+#include "stb_image.h"
 namespace aster { namespace {
 GLuint CompileShader(GLenum type,const char*source){
  GLuint shader=glCreateShader(type);glShaderSource(shader,1,&source,nullptr);glCompileShader(shader);
@@ -25,21 +27,11 @@ uniform mat4 uMvp;uniform mat4 uModel;out vec3 vNormal;out vec2 vUv;
 void main(){gl_Position=uMvp*vec4(aPosition,1.0);vNormal=mat3(uModel)*aNormal;vUv=aUv;})";
 const char* meshFragment=R"(#version 300 es
 precision highp float;in vec3 vNormal;in vec2 vUv;out vec4 outColor;
-uniform vec4 uBaseColor;uniform sampler2D uBaseTexture;uniform int uHasTexture;
-uniform float uMetallic;uniform float uRoughness;uniform int uSelected;
-void main(){
- vec3 n=normalize(vNormal);vec3 l=normalize(vec3(-0.4,0.8,0.5));
- vec3 v=normalize(vec3(0.0,0.0,1.0));vec3 h=normalize(l+v);
- vec4 albedo=uBaseColor;if(uHasTexture==1)albedo*=texture(uBaseTexture,vUv);
- float ndl=max(dot(n,l),0.0);float rough=clamp(uRoughness,0.08,1.0);float metal=clamp(uMetallic,0.0,1.0);
- float spec=pow(max(dot(n,h),0.0),mix(128.0,4.0,rough))*(1.0-rough*0.65);
- vec3 f0=mix(vec3(0.04),albedo.rgb,metal);
- float ambient=0.62;float directional=0.34*ndl;float fill=0.12*max(n.y,0.0)+0.08*max(-n.y,0.0);
- vec3 color=albedo.rgb*(ambient+directional+fill)*(1.0-metal)+f0*spec*max(ndl,0.18);
- color=color/(color+vec3(1.0));color=pow(max(color,vec3(0.0)),vec3(1.0/2.2));
- if(uSelected==1)color=mix(color,vec3(0.18,0.72,1.0),0.16);
- outColor=vec4(color,albedo.a);
-})";
+uniform vec4 uBaseColor;uniform sampler2D uBaseTexture,uNormalTexture,uRoughTexture,uAoTexture;
+uniform int uHasTexture,uHasNormal,uHasRough,uHasAo;uniform float uMetallic,uRoughness,uTiling;uniform int uSelected;
+vec3 mappedNormal(vec3 n,vec2 uv){if(uHasNormal==0)return normalize(n);vec3 m=texture(uNormalTexture,uv).xyz*2.0-1.0;vec3 dp1=dFdx(vNormal),dp2=dFdy(vNormal);vec2 du1=dFdx(uv),du2=dFdy(uv);vec3 t=cross(dp2,n)*du1.x+cross(n,dp1)*du2.x;vec3 b=cross(dp2,n)*du1.y+cross(n,dp1)*du2.y;float q=max(max(dot(t,t),dot(b,b)),1e-8);return normalize(mat3(t,b,n)*m*inversesqrt(q));}
+void main(){vec2 uv=vUv*uTiling;vec4 base=uBaseColor;if(uHasTexture==1)base*=texture(uBaseTexture,uv);vec3 n=mappedNormal(normalize(vNormal),uv);vec3 l=normalize(vec3(-.45,.82,.34)),v=normalize(vec3(0,0,1)),h=normalize(l+v);float rough=clamp(uHasRough==1?texture(uRoughTexture,uv).r:uRoughness,.045,1.0),metal=clamp(uMetallic,0.0,1.0),ao=uHasAo==1?texture(uAoTexture,uv).r:1.0;float nl=max(dot(n,l),0.0),nv=max(dot(n,v),.001),nh=max(dot(n,h),0.0),vh=max(dot(v,h),0.0);float a=rough*rough,a2=a*a,d=nh*nh*(a2-1.0)+1.0,D=a2/(3.14159265*d*d),k=(rough+1.0)*(rough+1.0)/8.0,G=(nv/(nv*(1.0-k)+k))*(nl/(nl*(1.0-k)+k));vec3 f0=mix(vec3(.04),base.rgb,metal),F=f0+(1.0-f0)*pow(1.0-vh,5.0),spec=D*G*F/max(4.0*nv*max(nl,.001),.001),kd=(1.0-F)*(1.0-metal);vec3 color=(kd*base.rgb/3.14159265+spec)*nl*2.6+base.rgb*(.18+.22*max(n.y,0.0))*ao;color=color/(color+vec3(1));color=pow(max(color,vec3(0)),vec3(1.0/2.2));if(uSelected==1)color=mix(color,vec3(.18,.72,1),.12);outColor=vec4(color,base.a);}
+)";
 const char* lineVertex=R"(#version 300 es
 layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aColor;
 uniform mat4 uMvp;out vec3 vColor;void main(){gl_Position=uMvp*vec4(aPosition,1.0);vColor=aColor;})";
@@ -88,7 +80,7 @@ Mat4 OpenGLES3Renderer::ViewProjection()const{
 void OpenGLES3Renderer::Initialize(){
  program_=LinkProgram(meshVertex,meshFragment);lineProgram_=LinkProgram(lineVertex,lineFragment);
  if(!program_||!lineProgram_)return;
- mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");baseColor_=glGetUniformLocation(program_,"uBaseColor");baseTexture_=glGetUniformLocation(program_,"uBaseTexture");hasTexture_=glGetUniformLocation(program_,"uHasTexture");metallic_=glGetUniformLocation(program_,"uMetallic");roughness_=glGetUniformLocation(program_,"uRoughness");selected_=glGetUniformLocation(program_,"uSelected");glUniform1i(baseTexture_,0);glUniform4f(baseColor_,.16f,.48f,.68f,1);glUniform1i(hasTexture_,0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);glUniform1i(selected_,0);
+ normalTexture_=glGetUniformLocation(program_,"uNormalTexture");roughTexture_=glGetUniformLocation(program_,"uRoughTexture");aoTexture_=glGetUniformLocation(program_,"uAoTexture");hasNormal_=glGetUniformLocation(program_,"uHasNormal");hasRough_=glGetUniformLocation(program_,"uHasRough");hasAo_=glGetUniformLocation(program_,"uHasAo");tiling_=glGetUniformLocation(program_,"uTiling");mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");baseColor_=glGetUniformLocation(program_,"uBaseColor");baseTexture_=glGetUniformLocation(program_,"uBaseTexture");hasTexture_=glGetUniformLocation(program_,"uHasTexture");metallic_=glGetUniformLocation(program_,"uMetallic");roughness_=glGetUniformLocation(program_,"uRoughness");selected_=glGetUniformLocation(program_,"uSelected");glUniform1i(baseTexture_,0);glUniform1i(normalTexture_,1);glUniform1i(roughTexture_,2);glUniform1i(aoTexture_,3);glUniform1f(tiling_,1.0f);glUniform4f(baseColor_,.16f,.48f,.68f,1);glUniform1i(hasTexture_,0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);glUniform1i(selected_,0);
  lineMvp_=glGetUniformLocation(lineProgram_,"uMvp");
  const std::vector<float> vertices=BuildCubeVertices();
  glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);
@@ -170,7 +162,7 @@ void OpenGLES3Renderer::RenderFrame(){
   if(!e.visible||e.kind==EntityKind::Light||e.kind==EntityKind::Camera)continue;
   const Mat4 model=Mat4::Translation(e.transform.position)*Mat4::RotationZ(e.transform.rotation.z)*Mat4::RotationY(e.transform.rotation.y)*Mat4::RotationX(e.transform.rotation.x)*Mat4::Scale(e.transform.scale);
   const Mat4 mvp=vp*model;glUniformMatrix4fv(mvp_,1,GL_FALSE,mvp.m);glUniformMatrix4fv(model_,1,GL_FALSE,model.m);
-  glUniform1i(selected_,e.id==engine_->Selected()?1:0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);glDrawArrays(GL_TRIANGLES,0,36);
+  glUniform1i(selected_,e.id==engine_->Selected()?1:0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);auto it=pbr_.find(e.id);const PbrSet* pm=it==pbr_.end()?nullptr:&it->second;glUniform1i(hasTexture_,pm&&pm->albedo);glUniform1i(hasNormal_,pm&&pm->normal);glUniform1i(hasRough_,pm&&pm->roughness);glUniform1i(hasAo_,pm&&pm->ao);glUniform1f(tiling_,pm?pm->tiling:1.0f);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,pm?pm->albedo:0);glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,pm?pm->normal:0);glActiveTexture(GL_TEXTURE2);glBindTexture(GL_TEXTURE_2D,pm?pm->roughness:0);glActiveTexture(GL_TEXTURE3);glBindTexture(GL_TEXTURE_2D,pm?pm->ao:0);glDrawArrays(GL_TRIANGLES,0,36);
  }
  glBindVertexArray(0);
  for(const auto& model:imported_){const Entity* owner=scene_->Find(model->entityId);if(!owner||!owner->visible)continue;const Mat4 transform=Mat4::Translation(owner->transform.position)*Mat4::RotationZ(owner->transform.rotation.z)*Mat4::RotationY(owner->transform.rotation.y)*Mat4::RotationX(owner->transform.rotation.x)*Mat4::Scale(owner->transform.scale);const Mat4 modelMvp=vp*transform;for(const auto& primitive:model->primitives){glUseProgram(program_);glBindVertexArray(primitive.vao);glUniformMatrix4fv(mvp_,1,GL_FALSE,modelMvp.m);glUniformMatrix4fv(model_,1,GL_FALSE,transform.m);
@@ -181,6 +173,8 @@ void OpenGLES3Renderer::RenderFrame(){
  }
  glBindVertexArray(0);DrawLines(vp);
 }
+bool OpenGLES3Renderer::SetMaterialTextures(EntityId id,const std::string& a,const std::string& n,const std::string& r,const std::string& ao,std::string& error){if(!scene_||!scene_->Find(id)){error="العنصر المحدد غير موجود";return false;}auto load=[](const std::string& path)->GLuint{if(path.empty())return 0;std::ifstream f(path,std::ios::binary);if(!f)return 0;f.seekg(0,std::ios::end);auto z=f.tellg();if(z<=0||z>static_cast<std::streamoff>(256*1024*1024))return 0;std::vector<unsigned char>b(static_cast<size_t>(z));f.seekg(0);if(!f.read(reinterpret_cast<char*>(b.data()),z))return 0;int w=0,h=0,c=0;stbi_uc*p=stbi_load_from_memory(b.data(),(int)b.size(),&w,&h,&c,4);if(!p||w<=0||h<=0){if(p)stbi_image_free(p);return 0;}GLuint t=0;glGenTextures(1,&t);glBindTexture(GL_TEXTURE_2D,t);glPixelStorei(GL_UNPACK_ALIGNMENT,1);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,p);glGenerateMipmap(GL_TEXTURE_2D);stbi_image_free(p);return t;};PbrSet q;q.albedo=load(a);q.normal=load(n);q.roughness=load(r);q.ao=load(ao);if((!a.empty()&&!q.albedo)||(!n.empty()&&!q.normal)||(!r.empty()&&!q.roughness)||(!ao.empty()&&!q.ao)){for(GLuint t:{q.albedo,q.normal,q.roughness,q.ao})if(t)glDeleteTextures(1,&t);error="تعذر قراءة الخرائط؛ استخدم PNG أو JPG";return false;}auto old=pbr_.find(id);if(old!=pbr_.end()){q.tiling=old->second.tiling;for(GLuint t:{old->second.albedo,old->second.normal,old->second.roughness,old->second.ao})if(t)glDeleteTextures(1,&t);}pbr_[id]=q;error.clear();return true;}
+void OpenGLES3Renderer::SetMaterialTiling(EntityId id,float v){if(std::isfinite(v))pbr_[id].tiling=std::clamp(v,.1f,64.0f);}
 bool OpenGLES3Renderer::ImportModel(const std::string& path,EntityId entityId,std::string& error){
  ImportResult parsed=GltfImporter::Load(path);if(!parsed){error=parsed.error;return false;}
  auto gpu=std::make_unique<GpuModel>();gpu->entityId=entityId;gpu->materials=parsed.model.materials;
@@ -201,7 +195,7 @@ bool OpenGLES3Renderer::ImportModel(const std::string& path,EntityId entityId,st
  if(gpu->primitives.empty()){error="لا يحتوي الملف على مجسمات مثلثية";return false;}imported_.push_back(std::move(gpu));error.clear();return true;
 }
 void OpenGLES3Renderer::Shutdown(){
- for(auto& m:imported_)for(auto& p:m->primitives){if(p.ebo)glDeleteBuffers(1,&p.ebo);if(p.vbo)glDeleteBuffers(1,&p.vbo);if(p.vao)glDeleteVertexArrays(1,&p.vao);}imported_.clear();if(vbo_)glDeleteBuffers(1,&vbo_);if(vao_)glDeleteVertexArrays(1,&vao_);
+ for(auto& e:pbr_)for(GLuint t:{e.second.albedo,e.second.normal,e.second.roughness,e.second.ao})if(t)glDeleteTextures(1,&t);pbr_.clear();for(auto& m:imported_)for(auto& p:m->primitives){if(p.ebo)glDeleteBuffers(1,&p.ebo);if(p.vbo)glDeleteBuffers(1,&p.vbo);if(p.vao)glDeleteVertexArrays(1,&p.vao);}imported_.clear();if(vbo_)glDeleteBuffers(1,&vbo_);if(vao_)glDeleteVertexArrays(1,&vao_);
  if(sphereVbo_)glDeleteBuffers(1,&sphereVbo_);if(sphereVao_)glDeleteVertexArrays(1,&sphereVao_);
  if(program_)glDeleteProgram(program_);if(lineProgram_)glDeleteProgram(lineProgram_);
  vbo_=vao_=sphereVbo_=sphereVao_=program_=lineProgram_=0;sphereVertexCount_=0;

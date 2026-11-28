@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <string>
 namespace{aster::Engine engine;std::unique_ptr<aster::OpenGLES3Renderer>renderer;std::string utf(JNIEnv*e,jstring s){if(!s)return {};const char*p=e->GetStringUTFChars(s,nullptr);std::string r=p?p:"";if(p)e->ReleaseStringUTFChars(s,p);return r;}}
+extern "C" JNIEXPORT jstring JNICALL Java_com_aster_engine_MainActivity_nativeSetPbrTextures(JNIEnv*e,jobject,jint id,jstring a,jstring n,jstring r,jstring ao){if(!renderer)return e->NewStringUTF("المحرّك الرسومي غير جاهز");std::string error;if(!renderer->SetMaterialTextures((aster::EntityId)id,utf(e,a),utf(e,n),utf(e,r),utf(e,ao),error))return e->NewStringUTF(error.c_str());return e->NewStringUTF("تم تطبيق خرائط PBR");}
+extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSetPbrTiling(JNIEnv*,jobject,jint id,jfloat v){if(renderer)renderer->SetMaterialTiling((aster::EntityId)id,v);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeResetScene(JNIEnv*,jobject){engine.GetScene().Clear();engine.Select(0);}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeStartEngine(JNIEnv*,jobject){engine.Start();}
 extern "C" JNIEXPORT void JNICALL Java_com_aster_engine_MainActivity_nativeSetThirdPerson(JNIEnv*,jobject,jint id,jboolean enabled){engine.SetThirdPerson(static_cast<aster::EntityId>(id),enabled==JNI_TRUE);}

@@ -6,13 +6,14 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_map>
 namespace aster{
 class OpenGLES3Renderer final:public IRenderer{
 public:
  OpenGLES3Renderer(const Scene*s,Engine*e):scene_(s),engine_(e){}
  void Initialize()override;void Resize(int,int)override;void RenderFrame()override;void Shutdown()override;
  int PickGizmoAxis(float,float)const;int PickEntity(float,float)const;void DragGizmoAxis(int,float,float);
- bool ImportModel(const std::string&,EntityId,std::string&);
+ bool ImportModel(const std::string&,EntityId,std::string&);bool SetMaterialTextures(EntityId,const std::string&,const std::string&,const std::string&,const std::string&,std::string&);void SetMaterialTiling(EntityId,float);
 private:
  struct GpuPrimitive{unsigned int vao{0},vbo{0},ebo{0};int indexCount{0},materialIndex{-1};};
  struct GpuModel{EntityId entityId{0};std::vector<GpuPrimitive> primitives;OpenGLES3Assets assets;std::vector<ImportedMaterial> materials;};
@@ -20,7 +21,7 @@ private:
  const Scene*scene_;Engine*engine_;int width_{1},height_{1};
  unsigned int program_{0},lineProgram_{0},vao_{0},vbo_{0},sphereVao_{0},sphereVbo_{0};
  int sphereVertexCount_{0};
- int mvp_{-1},model_{-1},lineMvp_{-1},baseColor_{-1},baseTexture_{-1},hasTexture_{-1},metallic_{-1},roughness_{-1},selected_{-1};
- std::vector<std::unique_ptr<GpuModel>> imported_;
+ int mvp_{-1},model_{-1},lineMvp_{-1},baseColor_{-1},baseTexture_{-1},hasTexture_{-1},metallic_{-1},roughness_{-1},selected_{-1},normalTexture_{-1},roughTexture_{-1},aoTexture_{-1},hasNormal_{-1},hasRough_{-1},hasAo_{-1},tiling_{-1};
+ struct PbrSet{unsigned int albedo{0},normal{0},roughness{0},ao{0};float tiling{1.0f};};std::unordered_map<EntityId,PbrSet> pbr_;std::vector<std::unique_ptr<GpuModel>> imported_;
 };
 }
