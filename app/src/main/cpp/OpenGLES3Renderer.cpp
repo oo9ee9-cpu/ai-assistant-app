@@ -23,14 +23,14 @@ GLuint LinkProgram(const char*vs,const char*fs){
 }
 const char* meshVertex=R"(#version 300 es
 layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aNormal;layout(location=2) in vec2 aUv;
-uniform mat4 uMvp;uniform mat4 uModel;out vec3 vNormal;out vec2 vUv;
-void main(){gl_Position=uMvp*vec4(aPosition,1.0);vNormal=mat3(uModel)*aNormal;vUv=aUv;})";
+uniform mat4 uMvp;uniform mat4 uModel;out vec3 vNormal;out vec2 vUv;out vec3 vWorldPosition;
+void main(){vec4 world=uModel*vec4(aPosition,1.0);gl_Position=uMvp*vec4(aPosition,1.0);vWorldPosition=world.xyz;vNormal=mat3(uModel)*aNormal;vUv=aUv;})";
 const char* meshFragment=R"(#version 300 es
-precision highp float;in vec3 vNormal;in vec2 vUv;out vec4 outColor;
+precision highp float;in vec3 vNormal;in vec2 vUv;in vec3 vWorldPosition;out vec4 outColor;
 uniform vec4 uBaseColor;uniform sampler2D uBaseTexture,uNormalTexture,uRoughTexture,uAoTexture;
-uniform int uHasTexture,uHasNormal,uHasRough,uHasAo;uniform float uMetallic,uRoughness,uTiling;uniform int uSelected;
+uniform int uHasTexture,uHasNormal,uHasRough,uHasAo;uniform float uMetallic,uRoughness,uTiling;uniform int uSelected;uniform vec3 uCameraPosition;
 vec3 mappedNormal(vec3 n,vec2 uv){if(uHasNormal==0)return normalize(n);vec3 m=texture(uNormalTexture,uv).xyz*2.0-1.0;vec3 dp1=dFdx(vNormal),dp2=dFdy(vNormal);vec2 du1=dFdx(uv),du2=dFdy(uv);vec3 t=cross(dp2,n)*du1.x+cross(n,dp1)*du2.x;vec3 b=cross(dp2,n)*du1.y+cross(n,dp1)*du2.y;float q=max(max(dot(t,t),dot(b,b)),1e-8);return normalize(mat3(t,b,n)*m*inversesqrt(q));}
-void main(){vec2 uv=vUv*uTiling;vec4 base=uBaseColor;if(uHasTexture==1)base*=texture(uBaseTexture,uv);vec3 n=mappedNormal(normalize(vNormal),uv);vec3 l=normalize(vec3(-.45,.82,.34)),v=normalize(vec3(0,0,1)),h=normalize(l+v);float rough=clamp(uHasRough==1?texture(uRoughTexture,uv).r:uRoughness,.045,1.0),metal=clamp(uMetallic,0.0,1.0),ao=uHasAo==1?texture(uAoTexture,uv).r:1.0;float nl=max(dot(n,l),0.0),nv=max(dot(n,v),.001),nh=max(dot(n,h),0.0),vh=max(dot(v,h),0.0);float a=rough*rough,a2=a*a,d=nh*nh*(a2-1.0)+1.0,D=a2/(3.14159265*d*d),k=(rough+1.0)*(rough+1.0)/8.0,G=(nv/(nv*(1.0-k)+k))*(nl/(nl*(1.0-k)+k));vec3 f0=mix(vec3(.04),base.rgb,metal),F=f0+(1.0-f0)*pow(1.0-vh,5.0),spec=D*G*F/max(4.0*nv*max(nl,.001),.001),kd=(1.0-F)*(1.0-metal);vec3 color=(kd*base.rgb/3.14159265+spec)*nl*2.6+base.rgb*(.18+.22*max(n.y,0.0))*ao;color=color/(color+vec3(1));color=pow(max(color,vec3(0)),vec3(1.0/2.2));if(uSelected==1)color=mix(color,vec3(.18,.72,1),.12);outColor=vec4(color,base.a);}
+void main(){vec2 uv=vUv*uTiling;vec4 base=uBaseColor;if(uHasTexture==1)base*=texture(uBaseTexture,uv);vec3 n=mappedNormal(normalize(vNormal),uv);vec3 l=normalize(vec3(-.45,.82,.34)),v=normalize(vec3(0,0,1)),h=normalize(l+v);float rough=clamp(uHasRough==1?texture(uRoughTexture,uv).r:uRoughness,.045,1.0),metal=clamp(uMetallic,0.0,1.0),ao=uHasAo==1?texture(uAoTexture,uv).r:1.0;float nl=max(dot(n,l),0.0),nv=max(dot(n,v),.001),nh=max(dot(n,h),0.0),vh=max(dot(v,h),0.0);float a=rough*rough,a2=a*a,d=nh*nh*(a2-1.0)+1.0,D=a2/(3.14159265*d*d),k=(rough+1.0)*(rough+1.0)/8.0,G=(nv/(nv*(1.0-k)+k))*(nl/(nl*(1.0-k)+k));vec3 f0=mix(vec3(.04),base.rgb,metal),F=f0+(1.0-f0)*pow(1.0-vh,5.0),spec=D*G*F/max(4.0*nv*max(nl,.001),.001),kd=(1.0-F)*(1.0-metal);spec=min(spec,vec3(.22));vec3 color=(kd*base.rgb/3.14159265+spec)*nl*1.75+base.rgb*(.24+.16*max(n.y,0.0))*ao;color=color/(color+vec3(1));float fog=smoothstep(24.0,82.0,length(uCameraPosition-vWorldPosition));vec3 fogColor=vec3(.58,.70,.78);color=mix(color,fogColor,fog*.34);color=pow(max(color,vec3(0)),vec3(1.0/2.2));if(uSelected==1)color=mix(color,vec3(.18,.72,1),.12);outColor=vec4(color,base.a);}
 )";
 const char* lineVertex=R"(#version 300 es
 layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aColor;
@@ -80,7 +80,7 @@ Mat4 OpenGLES3Renderer::ViewProjection()const{
 void OpenGLES3Renderer::Initialize(){
  program_=LinkProgram(meshVertex,meshFragment);lineProgram_=LinkProgram(lineVertex,lineFragment);
  if(!program_||!lineProgram_)return;
- normalTexture_=glGetUniformLocation(program_,"uNormalTexture");roughTexture_=glGetUniformLocation(program_,"uRoughTexture");aoTexture_=glGetUniformLocation(program_,"uAoTexture");hasNormal_=glGetUniformLocation(program_,"uHasNormal");hasRough_=glGetUniformLocation(program_,"uHasRough");hasAo_=glGetUniformLocation(program_,"uHasAo");tiling_=glGetUniformLocation(program_,"uTiling");mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");baseColor_=glGetUniformLocation(program_,"uBaseColor");baseTexture_=glGetUniformLocation(program_,"uBaseTexture");hasTexture_=glGetUniformLocation(program_,"uHasTexture");metallic_=glGetUniformLocation(program_,"uMetallic");roughness_=glGetUniformLocation(program_,"uRoughness");selected_=glGetUniformLocation(program_,"uSelected");glUniform1i(baseTexture_,0);glUniform1i(normalTexture_,1);glUniform1i(roughTexture_,2);glUniform1i(aoTexture_,3);glUniform1f(tiling_,1.0f);glUniform4f(baseColor_,.16f,.48f,.68f,1);glUniform1i(hasTexture_,0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.72f);glUniform1i(selected_,0);
+ normalTexture_=glGetUniformLocation(program_,"uNormalTexture");roughTexture_=glGetUniformLocation(program_,"uRoughTexture");aoTexture_=glGetUniformLocation(program_,"uAoTexture");hasNormal_=glGetUniformLocation(program_,"uHasNormal");hasRough_=glGetUniformLocation(program_,"uHasRough");hasAo_=glGetUniformLocation(program_,"uHasAo");tiling_=glGetUniformLocation(program_,"uTiling");mvp_=glGetUniformLocation(program_,"uMvp");model_=glGetUniformLocation(program_,"uModel");baseColor_=glGetUniformLocation(program_,"uBaseColor");baseTexture_=glGetUniformLocation(program_,"uBaseTexture");hasTexture_=glGetUniformLocation(program_,"uHasTexture");metallic_=glGetUniformLocation(program_,"uMetallic");roughness_=glGetUniformLocation(program_,"uRoughness");selected_=glGetUniformLocation(program_,"uSelected");glUniform1i(baseTexture_,0);glUniform1i(normalTexture_,1);glUniform1i(roughTexture_,2);glUniform1i(aoTexture_,3);glUniform1f(tiling_,1.0f);glUniform4f(baseColor_,.16f,.48f,.68f,1);glUniform1i(hasTexture_,0);glUniform1f(metallic_,0.0f);glUniform1f(roughness_,0.88f);glUniform1i(selected_,0);
  lineMvp_=glGetUniformLocation(lineProgram_,"uMvp");
  const std::vector<float> vertices=BuildCubeVertices();
  glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);
@@ -155,10 +155,10 @@ void OpenGLES3Renderer::DrawLines(const Mat4&vp){
  glBindVertexArray(0);glDeleteBuffers(1,&vb);glDeleteVertexArrays(1,&va);
 }
 void OpenGLES3Renderer::RenderFrame(){
- glClearColor(.045f,.075f,.105f,1.0f);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+ glClearColor(.34f,.52f,.68f,1.0f);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
  if(!scene_||!engine_||!program_)return;
  glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glDepthMask(GL_TRUE);glEnable(GL_CULL_FACE);glCullFace(GL_BACK);glFrontFace(GL_CCW);
- const Mat4 vp=ViewProjection();glUseProgram(program_);glBindVertexArray(vao_);
+ const Mat4 vp=ViewProjection();glUseProgram(program_);const GLint cameraLoc=glGetUniformLocation(program_,"uCameraPosition");const Vec3 camera=engine_->CameraPosition();glUniform3f(cameraLoc,camera.x,camera.y,camera.z);glBindVertexArray(vao_);
  for(const Entity&e:scene_->Entities()){
   if(!e.visible||e.kind==EntityKind::Light||e.kind==EntityKind::Camera)continue;
   const Mat4 model=Mat4::Translation(e.transform.position)*Mat4::RotationZ(e.transform.rotation.z)*Mat4::RotationY(e.transform.rotation.y)*Mat4::RotationX(e.transform.rotation.x)*Mat4::Scale(e.transform.scale);

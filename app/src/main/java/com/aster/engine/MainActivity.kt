@@ -129,7 +129,7 @@ class MainActivity:Activity(){
    val se=ProjectStore.entity(name,kind,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7],v[8],v[9]>.5f,v[10],v[11],v[12],v[13]>.5f,v[14],v[15],v[16]);se.put("assetPath",modelByEntity[name]?:"").put("script",scriptsByEntity[name]?:"").put("components",componentsByEntity[name]?:JSONObject().put("Transform",true).put("Physics",true)).put("material",materialsByEntity[name]?:JSONObject().put("baseColor","#50BFD8").put("metallic",0.0).put("roughness",.72));array.put(se)
   }
   ProjectStore.save(this,projectId,projectName,projectTemplate,array)
-  val data=ProjectStore.read(this,projectId);val assets=JSONArray();modelPaths.forEach{assets.put(it)};data.put("assets",assets);ProjectStore.writeRaw(this,projectId,data)
+  val data=ProjectStore.read(this,projectId);val assets=JSONArray();modelPaths.forEach{assets.put(it)};data.put("assets",assets).put("playSettings",JSONObject().put("cameraMode","thirdPerson").put("followPlayer",true).put("touchOrbit",true).put("fogEnabled",true));ProjectStore.writeRaw(this,projectId,data)
  }
  private fun buildEditor(){
   val root=LinearLayout(this).apply{orientation=1;setBackgroundColor(bg);setPadding(dp(5),dp(3),dp(5),dp(3))}
@@ -307,8 +307,9 @@ class MainActivity:Activity(){
  private fun togglePlay(){
   if(!playing){
    saveProject()
-   val thirdPersonRequested=scriptsByEntity.values.any{script->script.lineSequence().map{it.trim().lowercase()}.any{it=="third_person"||it=="camera.third_person"||it=="منظور الشخص الثالث"||it=="camera = third_person"}}
-   val cameraTarget=if(thirdPersonRequested)ids.entries.firstOrNull{it.key.startsWith("Cube")||it.key.startsWith("Sphere")||it.key.startsWith("Model_")}?.value?:0 else 0
+   val playerEntry=ids.entries.firstOrNull{it.key=="شخصية اللاعب"} ?: ids.entries.firstOrNull{it.key.contains("Player",true)} ?: ids.entries.firstOrNull{(it.key.startsWith("Cube")||it.key.startsWith("Sphere")) && nativeGetTransform(it.value)[9]<.5f}
+   val cameraTarget=playerEntry?.value?:0
+   if(cameraTarget>0){selected=playerEntry!!.key;nativeSelectEntity(cameraTarget)}
    nativeStartEngine();if(cameraTarget>0)nativeSetThirdPerson(cameraTarget,true)
    playing=true;playButton.text="↩ العودة إلى التطوير";status.visibility=View.GONE
    for(i in 0 until editorTop.childCount){val child=editorTop.getChildAt(i);child.visibility=if(child===playButton)View.VISIBLE else View.GONE}
