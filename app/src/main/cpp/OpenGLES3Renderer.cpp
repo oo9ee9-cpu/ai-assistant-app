@@ -37,23 +37,23 @@ layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aColor;
 uniform mat4 uMvp;out vec3 vColor;void main(){gl_Position=uMvp*vec4(aPosition,1.0);vColor=aColor;})";
 const char* lineFragment=R"(#version 300 es
 precision mediump float;in vec3 vColor;out vec4 outColor;void main(){outColor=vec4(vColor,1.0);})";
-using Vertex=std::array<float,6>;
 std::vector<float> BuildCubeVertices(){
- // Four independent vertices per face guarantee a constant outward normal on each face.
+ // Position + normal + UV. Independent face vertices keep normals flat and UVs continuous.
  struct Face{Vec3 a,b,c,d,n;};
  const Face faces[]={
-  {{-1,-1, 1},{ 1,-1, 1},{ 1, 1, 1},{-1, 1, 1},{ 0, 0, 1}}, // +Z
-  {{ 1,-1,-1},{-1,-1,-1},{-1, 1,-1},{ 1, 1,-1},{ 0, 0,-1}}, // -Z
-  {{ 1,-1, 1},{ 1,-1,-1},{ 1, 1,-1},{ 1, 1, 1},{ 1, 0, 0}}, // +X
-  {{-1,-1,-1},{-1,-1, 1},{-1, 1, 1},{-1, 1,-1},{-1, 0, 0}}, // -X
-  {{-1, 1, 1},{ 1, 1, 1},{ 1, 1,-1},{-1, 1,-1},{ 0, 1, 0}}, // +Y
-  {{-1,-1,-1},{ 1,-1,-1},{ 1,-1, 1},{-1,-1, 1},{ 0,-1, 0}}  // -Y
+  {{-1,-1, 1},{ 1,-1, 1},{ 1, 1, 1},{-1, 1, 1},{ 0, 0, 1}},
+  {{ 1,-1,-1},{-1,-1,-1},{-1, 1,-1},{ 1, 1,-1},{ 0, 0,-1}},
+  {{ 1,-1, 1},{ 1,-1,-1},{ 1, 1,-1},{ 1, 1, 1},{ 1, 0, 0}},
+  {{-1,-1,-1},{-1,-1, 1},{-1, 1, 1},{-1, 1,-1},{-1, 0, 0}},
+  {{-1, 1, 1},{ 1, 1, 1},{ 1, 1,-1},{-1, 1,-1},{ 0, 1, 0}},
+  {{-1,-1,-1},{ 1,-1,-1},{ 1,-1, 1},{-1,-1, 1},{ 0,-1, 0}}
  };
  constexpr int indices[6]={0,1,2,0,2,3};
- std::vector<float> out;out.reserve(36*6);
+ constexpr float uv[4][2]={{0,0},{1,0},{1,1},{0,1}};
+ std::vector<float> out;out.reserve(36*8);
  for(const Face& face:faces){
   const Vec3 corners[4]={face.a,face.b,face.c,face.d};
-  for(int index:indices){const Vec3 p=corners[index];out.insert(out.end(),{p.x,p.y,p.z,face.n.x,face.n.y,face.n.z});}
+  for(int index:indices){const Vec3 p=corners[index];out.insert(out.end(),{p.x,p.y,p.z,face.n.x,face.n.y,face.n.z,uv[index][0],uv[index][1]});}
  }
  return out;
 }
@@ -86,8 +86,9 @@ void OpenGLES3Renderer::Initialize(){
  glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);
  glBindVertexArray(vao_);glBindBuffer(GL_ARRAY_BUFFER,vbo_);
  glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(float)),vertices.data(),GL_STATIC_DRAW);
- glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),nullptr);
- glEnableVertexAttribArray(1);glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
+ glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,8*sizeof(float),nullptr);
+ glEnableVertexAttribArray(1);glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,8*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
+ glEnableVertexAttribArray(2);glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,8*sizeof(float),reinterpret_cast<void*>(6*sizeof(float)));
  glBindVertexArray(0);
  glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glDepthMask(GL_TRUE);
  glEnable(GL_CULL_FACE);glCullFace(GL_BACK);glFrontFace(GL_CCW);
@@ -141,7 +142,7 @@ void OpenGLES3Renderer::DragGizmoAxis(int axis,float dx,float dy){
 void OpenGLES3Renderer::DrawLines(const Mat4&vp){
  std::vector<float> data;
  auto line=[&](Vec3 a,Vec3 b,Vec3 c){for(Vec3 p:{a,b})data.insert(data.end(),{p.x,p.y,p.z,c.x,c.y,c.z});};
- for(int i=-20;i<=20;++i){float q=float(i);Vec3 c=i==0?Vec3{.3f,.4f,.5f}:Vec3{.15f,.21f,.28f};line({q,0,-20},{q,0,20},c);line({-20,0,q},{20,0,q},c);}
+ const bool texturedScene=std::any_of(pbr_.begin(),pbr_.end(),[](const auto& item){return item.second.albedo!=0;});if(!texturedScene)for(int i=-20;i<=20;++i){float q=float(i);Vec3 c=i==0?Vec3{.3f,.4f,.5f}:Vec3{.15f,.21f,.28f};line({q,0,-20},{q,0,20},c);line({-20,0,q},{20,0,q},c);}
  const Entity*e=scene_->Find(engine_->Selected());const Vec3 o=e?e->transform.position:Vec3{};
  line(o,o+Vec3{1.5f,0,0},{1,.12f,.12f});line(o,o+Vec3{0,1.5f,0},{.12f,1,.2f});line(o,o+Vec3{0,0,1.5f},{.15f,.45f,1});
  line({-3,2,-3},{-2.5f,2,-3},{1,.75f,.15f});line({-3,2,-3},{-3,2.5f,-3},{1,.75f,.15f});
